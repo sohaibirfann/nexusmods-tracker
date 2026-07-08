@@ -31,3 +31,13 @@ class ModInfoOut(BaseModel):
 
 class SetChannelRequest(BaseModel):
     channel_id: int
+
+
+class NotifyTarget(BaseModel):
+    guild_id: int
+    channel_id: int
+
+
+class ChangedModOut(BaseModel):
+    mod: ModOut
+    notify: list[NotifyTarget]

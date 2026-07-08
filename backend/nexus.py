@@ -46,4 +46,5 @@ def extract_fields(info: dict) -> dict:
         "version": str(info.get("version", "")),
         "author": str(info.get("author", "")),
         "picture_url": str(info.get("picture_url", "")),
+        "nexus_updated_at": int(info.get("updated_timestamp", 0)),
     }
