@@ -1,5 +1,32 @@
-from bot.main import parse_mod_url
+from unittest.mock import AsyncMock, patch
+
+from bot.main import mod_autocomplete, parse_mod_url, parse_track_value
 from bot.scheduler import build_update_embed
+
+
+def test_parse_track_value():
+    assert parse_track_value("skyrimspecialedition:266") == ("skyrimspecialedition", 266)
+    assert parse_track_value(" fallout4:12 ") == ("fallout4", 12)
+    assert parse_track_value("SkyUI") is None  # free-typed name
+    assert parse_track_value("skyrim:") is None
+    assert parse_track_value("skyrim:12:3") is None
+
+
+async def test_mod_autocomplete_guard_and_mapping():
+    # under 3 chars: no backend call at all
+    with patch("bot.main.api.get", new=AsyncMock()) as g:
+        assert await mod_autocomplete(None, "sk") == []
+        g.assert_not_called()
+
+    # 3+ chars: maps search results to Choices with "game:modid" values
+    resp = type("R", (), {"status_code": 200, "json": lambda self: [
+        {"mod_id": 3863, "name": "SkyUI", "game_domain": "skyrim"},
+    ]})()
+    with patch("bot.main.api.get", new=AsyncMock(return_value=resp)):
+        choices = await mod_autocomplete(None, "skyui")
+    assert len(choices) == 1
+    assert choices[0].value == "skyrim:3863"
+    assert parse_track_value(choices[0].value) == ("skyrim", 3863)
 
 
 def test_parse_mod_url():

@@ -1,4 +1,5 @@
 import logging
+import re
 
 import discord
 import httpx
@@ -23,6 +24,16 @@ def parse_mod_url(url: str) -> tuple[str, int] | None:
     if not game or "." in game or not mod_id.isdigit():
         return None
     return game, int(mod_id)
+
+
+# value format an autocomplete Choice carries: "<game_domain>:<mod_id>"
+_TRACK_VALUE = re.compile(r"^([\w-]+):(\d+)$")
+
+
+def parse_track_value(value: str) -> tuple[str, int] | None:
+    """Parse a picked suggestion's 'game:modid' value, or None for free-typed text."""
+    m = _TRACK_VALUE.match(value.strip())
+    return (m.group(1), int(m.group(2))) if m else None
 
 
 class TrackerBot(discord.Client):
@@ -95,12 +106,39 @@ async def setchannel(interaction: discord.Interaction, channel: discord.TextChan
     await interaction.followup.send(f"Updates will be posted in {target.mention}.", ephemeral=True)
 
 
-@bot.tree.command(name="track", description="Track a mod for updates")
-@app_commands.describe(game="Nexus game domain e.g. skyrimspecialedition", mod_id="Numeric mod ID")
+async def mod_autocomplete(
+    interaction: discord.Interaction, current: str
+) -> list[app_commands.Choice[str]]:
+    if len(current.strip()) < 3:  # skip the backend call on tiny inputs
+        return []
+    r = await api.get("/mods/search", params={"q": current})
+    if r.status_code != 200:
+        return []
+    return [
+        app_commands.Choice(
+            name=f"{m['name']} — {m['game_domain']}"[:100],
+            value=f"{m['game_domain']}:{m['mod_id']}",
+        )
+        for m in r.json()
+    ]
+
+
+@bot.tree.command(name="track", description="Track a mod for updates (search by name)")
+@app_commands.describe(mod="Type a mod name and pick a suggestion")
+@app_commands.autocomplete(mod=mod_autocomplete)
 @app_commands.guild_only()
-async def track(interaction: discord.Interaction, game: str, mod_id: int):
+async def track(interaction: discord.Interaction, mod: str):
     await interaction.response.defer()
-    await interaction.followup.send(await _do_track(interaction.guild_id, game, mod_id))
+    parsed = parse_track_value(mod)
+    if parsed is None:
+        # free text (no suggestion picked): search and take the top hit
+        r = await api.get("/mods/search", params={"q": mod})
+        results = r.json() if r.status_code == 200 else []
+        if not results:
+            await interaction.followup.send("No mod found by that name.")
+            return
+        parsed = (results[0]["game_domain"], results[0]["mod_id"])
+    await interaction.followup.send(await _do_track(interaction.guild_id, *parsed))
 
 
 @bot.tree.command(name="trackurl", description="Track a mod by pasting its Nexus URL")
