@@ -29,6 +29,12 @@ class ModInfoOut(BaseModel):
     picture_url: str = ""
 
 
+class SearchResultOut(BaseModel):
+    mod_id: int
+    name: str
+    game_domain: str
+
+
 class SetChannelRequest(BaseModel):
     channel_id: int
 

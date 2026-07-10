@@ -29,6 +29,23 @@ async def test_auth_required(client):
     assert r.status_code == 401
 
 
+async def test_search_short_query_skips_nexus(client):
+    with patch("backend.main.search_mods") as m:
+        r = await client.get("/mods/search", params={"q": "sk"}, headers=HEADERS)
+    assert r.status_code == 200
+    assert r.json() == []
+    m.assert_not_called()
+
+
+async def test_search_maps_results(client):
+    hits = [{"mod_id": 3863, "name": "SkyUI", "game_domain": "skyrim"}]
+    with patch("backend.main.search_mods", return_value=hits) as m:
+        r = await client.get("/mods/search", params={"q": "skyui"}, headers=HEADERS)
+    assert r.status_code == 200
+    assert r.json() == hits
+    m.assert_awaited_once()
+
+
 async def test_track_then_list(client):
     r = await _track(client, 1)
     assert r.status_code == 201

@@ -12,12 +12,13 @@ from backend.config import settings
 from backend.database import get_db
 from backend.models import Guild, Mod, Subscription
 from backend.nexus import client as nexus_client
-from backend.nexus import extract_fields, get_mod_info, get_updated_mods
+from backend.nexus import extract_fields, get_mod_info, get_updated_mods, search_mods
 from backend.schemas import (
     ChangedModOut,
     ModInfoOut,
     ModOut,
     NotifyTarget,
+    SearchResultOut,
     SetChannelRequest,
     TrackModRequest,
 )
@@ -146,6 +147,17 @@ async def remove_guild(guild_id: int, db: AsyncSession = Depends(get_db)):
     await db.execute(delete(Guild).where(Guild.guild_id == guild_id))
     await _prune_orphan_mods(db)
     await db.commit()
+
+
+@router.get("/mods/search", response_model=list[SearchResultOut])
+async def search(q: str):
+    # read-only; skip Nexus entirely for queries too short to be useful
+    if len(q.strip()) < 3:
+        return []
+    try:
+        return await search_mods(q)
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(502, "Nexus API error") from e
 
 
 @router.get("/mods/info", response_model=ModInfoOut)

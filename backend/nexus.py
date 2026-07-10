@@ -1,4 +1,5 @@
 import logging
+import time
 
 import httpx
 
@@ -6,6 +7,15 @@ from backend.config import settings
 
 BASE = "https://api.nexusmods.com"
 logger = logging.getLogger("backend.nexus")
+
+SEARCH_QUERY = """
+query($q: String!, $count: Int!) {
+  mods(filter: { nameStemmed: [{ value: $q, op: MATCHES }] },
+       count: $count, sort: [{ endorsements: { direction: DESC } }]) {
+    nodes { modId name game { domainName } }
+  }
+}
+"""
 
 # one client for the process lifetime, shared across all calls
 client = httpx.AsyncClient(
@@ -37,6 +47,32 @@ async def get_updated_mods(game_domain: str, period: str = "1w") -> list[dict]:
     _check_rate_limit(resp)
     resp.raise_for_status()
     return resp.json()
+
+
+# small unbounded cache; queries are short-lived so it never really grows
+_search_cache: dict[str, tuple[float, list[dict]]] = {}
+_SEARCH_TTL = 60
+
+
+async def search_mods(query: str, limit: int = 25) -> list[dict]:
+    """Full-text mod search via GraphQL. Returns [{mod_id, name, game_domain}]."""
+    key = query.strip().lower()
+    hit = _search_cache.get(key)
+    if hit and time.monotonic() - hit[0] < _SEARCH_TTL:
+        return hit[1]
+
+    resp = await client.post(
+        "/v2/graphql", json={"query": SEARCH_QUERY, "variables": {"q": key, "count": limit}}
+    )
+    _check_rate_limit(resp)
+    resp.raise_for_status()
+    nodes = resp.json()["data"]["mods"]["nodes"]
+    results = [
+        {"mod_id": n["modId"], "name": n["name"], "game_domain": n["game"]["domainName"]}
+        for n in nodes
+    ]
+    _search_cache[key] = (time.monotonic(), results)
+    return results
 
 
 def extract_fields(info: dict) -> dict:
