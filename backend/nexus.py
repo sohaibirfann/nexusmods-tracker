@@ -9,9 +9,8 @@ BASE = "https://api.nexusmods.com"
 logger = logging.getLogger("backend.nexus")
 
 SEARCH_QUERY = """
-query($q: String!, $count: Int!) {
-  mods(filter: { nameStemmed: [{ value: $q, op: MATCHES }] },
-       count: $count, sort: [{ endorsements: { direction: DESC } }]) {
+query($filter: ModsFilter!, $count: Int!) {
+  mods(filter: $filter, count: $count, sort: [{ endorsements: { direction: DESC } }]) {
     nodes { modId name game { domainName } }
   }
 }
@@ -50,19 +49,27 @@ async def get_updated_mods(game_domain: str, period: str = "1w") -> list[dict]:
 
 
 # small unbounded cache; queries are short-lived so it never really grows
-_search_cache: dict[str, tuple[float, list[dict]]] = {}
+_search_cache: dict[tuple[str, str], tuple[float, list[dict]]] = {}
 _SEARCH_TTL = 60
 
+# the full games list changes rarely, so hold it for a day between fetches
+_games_cache: tuple[float, list[dict]] | None = None
+_GAMES_TTL = 86400
 
-async def search_mods(query: str, limit: int = 25) -> list[dict]:
-    """Full-text mod search via GraphQL. Returns [{mod_id, name, game_domain}]."""
-    key = query.strip().lower()
+
+async def search_mods(query: str, game: str | None = None, limit: int = 25) -> list[dict]:
+    """Full-text mod search via GraphQL, optionally scoped to one game domain."""
+    q = query.strip().lower()
+    key = (game or "", q)
     hit = _search_cache.get(key)
     if hit and time.monotonic() - hit[0] < _SEARCH_TTL:
         return hit[1]
 
+    filt: dict = {"nameStemmed": [{"value": q, "op": "MATCHES"}]}
+    if game:
+        filt["gameDomainName"] = [{"value": game, "op": "EQUALS"}]
     resp = await client.post(
-        "/v2/graphql", json={"query": SEARCH_QUERY, "variables": {"q": key, "count": limit}}
+        "/v2/graphql", json={"query": SEARCH_QUERY, "variables": {"filter": filt, "count": limit}}
     )
     _check_rate_limit(resp)
     resp.raise_for_status()
@@ -73,6 +80,19 @@ async def search_mods(query: str, limit: int = 25) -> list[dict]:
     ]
     _search_cache[key] = (time.monotonic(), results)
     return results
+
+
+async def get_games() -> list[dict]:
+    """All Nexus games as [{name, domain}], cached for a day."""
+    global _games_cache
+    if _games_cache and time.monotonic() - _games_cache[0] < _GAMES_TTL:
+        return _games_cache[1]
+    resp = await client.get("/v1/games.json")
+    _check_rate_limit(resp)
+    resp.raise_for_status()
+    games = [{"name": g["name"], "domain": g["domain_name"]} for g in resp.json()]
+    _games_cache = (time.monotonic(), games)
+    return games
 
 
 def extract_fields(info: dict) -> dict:

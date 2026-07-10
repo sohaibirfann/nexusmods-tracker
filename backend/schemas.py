@@ -35,6 +35,11 @@ class SearchResultOut(BaseModel):
     game_domain: str
 
 
+class GameOut(BaseModel):
+    name: str
+    domain: str
+
+
 class SetChannelRequest(BaseModel):
     channel_id: int
 

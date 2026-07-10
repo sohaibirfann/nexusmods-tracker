@@ -46,6 +46,32 @@ async def test_search_maps_results(client):
     m.assert_awaited_once()
 
 
+async def test_search_scopes_by_game(client):
+    with patch("backend.main.search_mods", return_value=[]) as m:
+        await client.get(
+            "/mods/search", params={"q": "skyui", "game": "sse"}, headers=HEADERS
+        )
+    m.assert_awaited_once_with("skyui", game="sse")
+
+
+async def test_games_empty_query_skips_fetch(client):
+    with patch("backend.main.get_games") as m:
+        r = await client.get("/games", params={"q": ""}, headers=HEADERS)
+    assert r.json() == []
+    m.assert_not_called()
+
+
+async def test_games_filters_cached_list(client):
+    games = [
+        {"name": "Skyrim", "domain": "skyrim"},
+        {"name": "Skyrim Special Edition", "domain": "skyrimspecialedition"},
+        {"name": "Fallout 4", "domain": "fallout4"},
+    ]
+    with patch("backend.main.get_games", return_value=games):
+        r = await client.get("/games", params={"q": "skyrim"}, headers=HEADERS)
+    assert [g["domain"] for g in r.json()] == ["skyrim", "skyrimspecialedition"]
+
+
 async def test_track_then_list(client):
     r = await _track(client, 1)
     assert r.status_code == 201

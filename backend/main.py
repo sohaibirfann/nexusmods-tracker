@@ -12,9 +12,10 @@ from backend.config import settings
 from backend.database import get_db
 from backend.models import Guild, Mod, Subscription
 from backend.nexus import client as nexus_client
-from backend.nexus import extract_fields, get_mod_info, get_updated_mods, search_mods
+from backend.nexus import extract_fields, get_games, get_mod_info, get_updated_mods, search_mods
 from backend.schemas import (
     ChangedModOut,
+    GameOut,
     ModInfoOut,
     ModOut,
     NotifyTarget,
@@ -149,13 +150,26 @@ async def remove_guild(guild_id: int, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
 
+@router.get("/games", response_model=list[GameOut])
+async def games(q: str):
+    # filters the day-cached games list in memory; no per-call Nexus hit
+    ql = q.strip().lower()
+    if not ql:
+        return []
+    try:
+        matches = [g for g in await get_games() if ql in g["name"].lower()]
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(502, "Nexus API error") from e
+    return matches[:25]
+
+
 @router.get("/mods/search", response_model=list[SearchResultOut])
-async def search(q: str):
+async def search(q: str, game: str | None = None):
     # read-only; skip Nexus entirely for queries too short to be useful
     if len(q.strip()) < 3:
         return []
     try:
-        return await search_mods(q)
+        return await search_mods(q, game=game)
     except httpx.HTTPStatusError as e:
         raise HTTPException(502, "Nexus API error") from e
 
