@@ -106,33 +106,43 @@ async def setchannel(interaction: discord.Interaction, channel: discord.TextChan
     await interaction.followup.send(f"Updates will be posted in {target.mention}.", ephemeral=True)
 
 
+async def game_autocomplete(
+    interaction: discord.Interaction, current: str
+) -> list[app_commands.Choice[str]]:
+    if len(current.strip()) < 2:
+        return []
+    r = await api.get("/games", params={"q": current})
+    if r.status_code != 200:
+        return []
+    return [app_commands.Choice(name=g["name"][:100], value=g["domain"]) for g in r.json()]
+
+
 async def mod_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> list[app_commands.Choice[str]]:
     if len(current.strip()) < 3:  # skip the backend call on tiny inputs
         return []
-    r = await api.get("/mods/search", params={"q": current})
+    game = getattr(interaction.namespace, "game", None)
+    params = {"q": current, "game": game} if game else {"q": current}
+    r = await api.get("/mods/search", params=params)
     if r.status_code != 200:
         return []
     return [
-        app_commands.Choice(
-            name=f"{m['name']} — {m['game_domain']}"[:100],
-            value=f"{m['game_domain']}:{m['mod_id']}",
-        )
+        app_commands.Choice(name=m["name"][:100], value=f"{m['game_domain']}:{m['mod_id']}")
         for m in r.json()
     ]
 
 
-@bot.tree.command(name="track", description="Track a mod for updates (search by name)")
-@app_commands.describe(mod="Type a mod name and pick a suggestion")
-@app_commands.autocomplete(mod=mod_autocomplete)
+@bot.tree.command(name="track", description="Track a mod for updates")
+@app_commands.describe(game="Pick the game", mod="Search the mod by name")
+@app_commands.autocomplete(game=game_autocomplete, mod=mod_autocomplete)
 @app_commands.guild_only()
-async def track(interaction: discord.Interaction, mod: str):
+async def track(interaction: discord.Interaction, game: str, mod: str):
     await interaction.response.defer()
     parsed = parse_track_value(mod)
     if parsed is None:
-        # free text (no suggestion picked): search and take the top hit
-        r = await api.get("/mods/search", params={"q": mod})
+        # free text (no suggestion picked): search within the chosen game, take top hit
+        r = await api.get("/mods/search", params={"q": mod, "game": game})
         results = r.json() if r.status_code == 200 else []
         if not results:
             await interaction.followup.send("No mod found by that name.")

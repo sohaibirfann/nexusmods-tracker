@@ -1,7 +1,16 @@
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from bot.main import mod_autocomplete, parse_mod_url, parse_track_value
+from bot.main import game_autocomplete, mod_autocomplete, parse_mod_url, parse_track_value
 from bot.scheduler import build_update_embed
+
+
+def _fake_response(payload, status=200):
+    return type("R", (), {"status_code": status, "json": lambda self: payload})()
+
+
+def _interaction(**namespace):
+    return SimpleNamespace(namespace=SimpleNamespace(**namespace))
 
 
 def test_parse_track_value():
@@ -12,21 +21,31 @@ def test_parse_track_value():
     assert parse_track_value("skyrim:12:3") is None
 
 
-async def test_mod_autocomplete_guard_and_mapping():
+async def test_mod_autocomplete_guard_and_scoping():
     # under 3 chars: no backend call at all
     with patch("bot.main.api.get", new=AsyncMock()) as g:
-        assert await mod_autocomplete(None, "sk") == []
+        assert await mod_autocomplete(_interaction(game="skyrim"), "sk") == []
         g.assert_not_called()
 
-    # 3+ chars: maps search results to Choices with "game:modid" values
-    resp = type("R", (), {"status_code": 200, "json": lambda self: [
-        {"mod_id": 3863, "name": "SkyUI", "game_domain": "skyrim"},
-    ]})()
-    with patch("bot.main.api.get", new=AsyncMock(return_value=resp)):
-        choices = await mod_autocomplete(None, "skyui")
-    assert len(choices) == 1
+    # 3+ chars: scopes to the picked game and maps to "game:modid" Choices
+    resp = _fake_response([{"mod_id": 3863, "name": "SkyUI", "game_domain": "skyrim"}])
+    with patch("bot.main.api.get", new=AsyncMock(return_value=resp)) as g:
+        choices = await mod_autocomplete(_interaction(game="skyrim"), "skyui")
+    g.assert_awaited_once_with("/mods/search", params={"q": "skyui", "game": "skyrim"})
     assert choices[0].value == "skyrim:3863"
     assert parse_track_value(choices[0].value) == ("skyrim", 3863)
+
+
+async def test_game_autocomplete():
+    with patch("bot.main.api.get", new=AsyncMock()) as g:
+        assert await game_autocomplete(_interaction(), "s") == []  # under 2 chars, no call
+        g.assert_not_called()
+
+    resp = _fake_response([{"name": "Skyrim Special Edition", "domain": "skyrimspecialedition"}])
+    with patch("bot.main.api.get", new=AsyncMock(return_value=resp)):
+        choices = await game_autocomplete(_interaction(), "skyrim")
+    assert choices[0].name == "Skyrim Special Edition"
+    assert choices[0].value == "skyrimspecialedition"
 
 
 def test_parse_mod_url():
