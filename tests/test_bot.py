@@ -1,7 +1,13 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from bot.main import game_autocomplete, mod_autocomplete, parse_mod_url, parse_track_value
+from bot.main import (
+    game_autocomplete,
+    mod_autocomplete,
+    parse_mod_url,
+    parse_track_value,
+    tracked_autocomplete,
+)
 from bot.scheduler import build_update_embed
 
 
@@ -10,7 +16,7 @@ def _fake_response(payload, status=200):
 
 
 def _interaction(**namespace):
-    return SimpleNamespace(namespace=SimpleNamespace(**namespace))
+    return SimpleNamespace(namespace=SimpleNamespace(**namespace), guild_id=1)
 
 
 def test_parse_track_value():
@@ -33,6 +39,18 @@ async def test_mod_autocomplete_guard_and_scoping():
         choices = await mod_autocomplete(_interaction(game="skyrim"), "skyui")
     g.assert_awaited_once_with("/mods/search", params={"q": "skyui", "game": "skyrim"})
     assert choices[0].value == "skyrim:3863"
+    assert parse_track_value(choices[0].value) == ("skyrim", 3863)
+
+
+async def test_tracked_autocomplete_filters_guild_mods():
+    tracked = [
+        {"mod_id": 266, "name": "USSEP", "game_domain": "skyrimspecialedition"},
+        {"mod_id": 3863, "name": "SkyUI", "game_domain": "skyrim"},
+    ]
+    resp = _fake_response(tracked)
+    with patch("bot.main.api.get", new=AsyncMock(return_value=resp)):
+        choices = await tracked_autocomplete(_interaction(), "sky")
+    assert [c.value for c in choices] == ["skyrim:3863"]
     assert parse_track_value(choices[0].value) == ("skyrim", 3863)
 
 

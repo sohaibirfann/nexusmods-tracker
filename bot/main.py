@@ -165,11 +165,42 @@ async def trackurl(interaction: discord.Interaction, url: str):
     await interaction.followup.send(await _do_track(interaction.guild_id, *parsed))
 
 
+async def tracked_autocomplete(
+    interaction: discord.Interaction, current: str
+) -> list[app_commands.Choice[str]]:
+    # suggests from the guild's own tracked mods; no Nexus call
+    r = await api.get(f"/guilds/{interaction.guild_id}/mods")
+    if r.status_code != 200:
+        return []
+    cur = current.strip().lower()
+    mods = [m for m in r.json() if cur in m["name"].lower()]
+    return [
+        app_commands.Choice(
+            name=f"{m['name']} — {m['game_domain']}"[:100],
+            value=f"{m['game_domain']}:{m['mod_id']}",
+        )
+        for m in mods[:25]
+    ]
+
+
 @bot.tree.command(name="untrack", description="Stop tracking a mod")
-@app_commands.describe(game="Nexus game domain", mod_id="Numeric mod ID")
+@app_commands.describe(mod="Pick one of your tracked mods")
+@app_commands.autocomplete(mod=tracked_autocomplete)
 @app_commands.guild_only()
-async def untrack(interaction: discord.Interaction, game: str, mod_id: int):
+async def untrack(interaction: discord.Interaction, mod: str):
     await interaction.response.defer()
+    parsed = parse_track_value(mod)
+    if parsed is None:
+        # free text: match by name against what the guild tracks
+        r = await api.get(f"/guilds/{interaction.guild_id}/mods")
+        tracked = r.json() if r.status_code == 200 else []
+        cur = mod.strip().lower()
+        match = next((m for m in tracked if cur in m["name"].lower()), None)
+        if match is None:
+            await interaction.followup.send("You're not tracking a mod by that name.")
+            return
+        parsed = (match["game_domain"], match["mod_id"])
+    game, mod_id = parsed
     r = await api.delete(
         f"/guilds/{interaction.guild_id}/mods", params={"game_domain": game, "mod_id": mod_id}
     )
