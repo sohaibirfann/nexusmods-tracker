@@ -72,6 +72,25 @@ async def on_guild_remove(guild: discord.Guild):
         logger.warning("Cleanup failed for guild %s: %s", guild.id, e)
 
 
+WELCOME = (
+    "👋 **Thanks for adding me!**\n"
+    "1. Run `/setchannel` to pick where mod updates get posted.\n"
+    "2. Use `/track` to follow a mod — I'll announce new versions automatically.\n"
+    "Other commands: `/list`, `/info`, `/untrack`, `/check`."
+)
+
+
+@bot.event
+async def on_guild_join(guild: discord.Guild):
+    channel = guild.system_channel
+    if channel is None or not channel.permissions_for(guild.me).send_messages:
+        return
+    try:
+        await channel.send(WELCOME)
+    except discord.HTTPException as e:
+        logger.warning("Welcome message failed for guild %s: %s", guild.id, e)
+
+
 @bot.tree.error
 async def on_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.CommandOnCooldown):
