@@ -2,13 +2,14 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from bot.main import (
+    _resolve_mod,
     game_autocomplete,
     mod_autocomplete,
     parse_mod_url,
     parse_track_value,
     tracked_autocomplete,
 )
-from bot.scheduler import build_update_embed
+from bot.scheduler import build_list_embed, build_track_embed, build_update_embed
 
 
 def _fake_response(payload, status=200):
@@ -54,6 +55,23 @@ async def test_tracked_autocomplete_filters_guild_mods():
     assert parse_track_value(choices[0].value) == ("skyrim", 3863)
 
 
+async def test_resolve_mod():
+    # a picked suggestion parses directly, no search call
+    with patch("bot.main.api.get", new=AsyncMock()) as g:
+        assert await _resolve_mod("skyrim", "skyrim:3863") == ("skyrim", 3863)
+        g.assert_not_called()
+
+    # free text searches within the game and takes the top hit
+    resp = _fake_response([{"mod_id": 3863, "name": "SkyUI", "game_domain": "skyrim"}])
+    with patch("bot.main.api.get", new=AsyncMock(return_value=resp)) as g:
+        assert await _resolve_mod("skyrim", "skyui") == ("skyrim", 3863)
+    g.assert_awaited_once_with("/mods/search", params={"q": "skyui", "game": "skyrim"})
+
+    # no results -> None
+    with patch("bot.main.api.get", new=AsyncMock(return_value=_fake_response([]))):
+        assert await _resolve_mod("skyrim", "nope") is None
+
+
 async def test_game_autocomplete():
     with patch("bot.main.api.get", new=AsyncMock()) as g:
         assert await game_autocomplete(_interaction(), "s") == []  # under 2 chars, no call
@@ -81,6 +99,33 @@ def test_parse_mod_url():
     assert parse_mod_url("nexusmods.com/mods/266") is None  # no game slug
 
 
+def test_build_track_embed():
+    mod = {
+        "name": "SkyUI",
+        "version": "5.2",
+        "author": "Team",
+        "picture_url": "http://x/p.jpg",
+        "game_domain": "skyrimspecialedition",
+        "mod_id": 12604,
+    }
+    e = build_track_embed(mod)
+    assert e.title == "SkyUI"
+    assert e.url == "https://www.nexusmods.com/skyrimspecialedition/mods/12604"
+    assert e.image.url == "http://x/p.jpg"  # large image, not a thumbnail
+    fields = {f.name: f.value for f in e.fields}
+    assert fields["Version"] == "v5.2"
+    assert fields["Author"] == "Team"
+    assert "?tab=logs" in fields["Links"] and "?tab=files" in fields["Links"]
+
+
+def test_build_list_embed():
+    assert "Not tracking" in build_list_embed([]).description
+    mods = [{"name": "SkyUI", "version": "5.2", "game_domain": "skyrim", "mod_id": 3863}]
+    e = build_list_embed(mods)
+    assert "[SkyUI](https://www.nexusmods.com/skyrim/mods/3863)" in e.description
+    assert "v5.2" in e.description
+
+
 def test_build_update_embed():
     mod = {
         "name": "SkyUI",
@@ -91,12 +136,13 @@ def test_build_update_embed():
         "mod_id": 12,
     }
     e = build_update_embed(mod)
-    assert e.title == "SkyUI updated!"
-    assert "5.2" in e.description
+    assert e.title == "SkyUI"
+    assert "update" in e.description.lower()
     assert e.url == "https://www.nexusmods.com/sse/mods/12"
-    assert e.thumbnail.url == "http://x/p.jpg"
+    assert e.image.url == "http://x/p.jpg"
 
-    bare = {"name": "X", "version": "1", "author": "", "picture_url": "", "game_domain": "g", "mod_id": 1}  # noqa: E501
+    # missing optional fields shouldn't crash; no image, no Author field
+    bare = {"name": "X", "version": "", "author": "", "picture_url": "", "game_domain": "g", "mod_id": 1}  # noqa: E501
     e = build_update_embed(bare)
-    assert e.thumbnail.url is None
-    assert not e.fields
+    assert e.image.url is None
+    assert {f.name for f in e.fields} == {"Links"}

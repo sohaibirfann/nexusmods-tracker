@@ -14,18 +14,43 @@ def mod_url(game_domain: str, mod_id: int) -> str:
     return f"https://www.nexusmods.com/{game_domain}/mods/{mod_id}"
 
 
-def build_update_embed(mod: dict) -> discord.Embed:
+def build_mod_embed(mod: dict, status: str = "") -> discord.Embed:
+    """A big, consistent card for one mod: title link, fields, and a large image."""
+    link = mod_url(mod["game_domain"], mod["mod_id"])
     embed = discord.Embed(
-        title=f"{mod['name'][:250]} updated!",
-        description=f"New version: **v{mod['version']}**",
-        url=mod_url(mod["game_domain"], mod["mod_id"]),
-        color=NEXUS_ORANGE,
+        title=mod["name"][:250], url=link, description=status, color=NEXUS_ORANGE
     )
+    if mod.get("version"):
+        embed.add_field(name="Version", value=f"v{mod['version']}", inline=True)
     if mod.get("author"):
         embed.add_field(name="Author", value=mod["author"][:200], inline=True)
+    links = f"[Files]({link}?tab=files) • [Changelog]({link}?tab=logs)"
+    embed.add_field(name="Links", value=links, inline=False)
     if mod.get("picture_url"):
-        embed.set_thumbnail(url=mod["picture_url"])
+        embed.set_image(url=mod["picture_url"])
     return embed
+
+
+def build_track_embed(mod: dict) -> discord.Embed:
+    return build_mod_embed(mod, "✅ Now tracking this mod.")
+
+
+def build_update_embed(mod: dict) -> discord.Embed:
+    return build_mod_embed(mod, "🔔 New update available!")
+
+
+def build_list_embed(mods: list[dict]) -> discord.Embed:
+    if not mods:
+        return discord.Embed(
+            title="Tracked mods", description="Not tracking anything yet.", color=NEXUS_ORANGE
+        )
+    lines = [
+        f"[{m['name']}]({mod_url(m['game_domain'], m['mod_id'])}) — v{m['version']}" for m in mods
+    ]
+    # long lists get paginated in a later change; trim to the embed limit for now
+    return discord.Embed(
+        title="Tracked mods", description="\n".join(lines)[:4096], color=NEXUS_ORANGE
+    )
 
 
 async def post_updates(bot: discord.Client, changed: list[dict]) -> None:

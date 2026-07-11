@@ -6,7 +6,13 @@ import httpx
 from discord import app_commands
 
 from bot.config import api, settings
-from bot.scheduler import NEXUS_ORANGE, mod_url, run_check, start_scheduler
+from bot.scheduler import (
+    build_list_embed,
+    build_mod_embed,
+    build_track_embed,
+    run_check,
+    start_scheduler,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("bot")
@@ -81,18 +87,35 @@ async def on_command_error(interaction: discord.Interaction, error: app_commands
         await interaction.response.send_message(msg, ephemeral=True)
 
 
-async def _do_track(guild_id: int, game_domain: str, mod_id: int) -> str:
+async def _do_track(guild_id: int, game_domain: str, mod_id: int) -> dict | str:
+    """Returns the tracked mod on success, or an error message string."""
     r = await api.post(
         f"/guilds/{guild_id}/mods", json={"game_domain": game_domain, "mod_id": mod_id}
     )
     if r.status_code == 201:
-        d = r.json()
-        return f"Now tracking **{d['name']}** (v{d['version']})."
+        return r.json()
     if r.status_code == 409:
         return "Already tracking that mod."
     if r.status_code == 404:
         return "That mod doesn't exist on Nexus."
     return "Something went wrong talking to the backend."
+
+
+async def _send_track_result(interaction: discord.Interaction, result: dict | str) -> None:
+    if isinstance(result, dict):
+        await interaction.followup.send(embed=build_track_embed(result))
+    else:
+        await interaction.followup.send(result)
+
+
+async def _resolve_mod(game: str, mod: str) -> tuple[str, int] | None:
+    """Turn a picked suggestion or free-typed name into (game_domain, mod_id)."""
+    parsed = parse_track_value(mod)
+    if parsed is not None:
+        return parsed
+    r = await api.get("/mods/search", params={"q": mod, "game": game})
+    results = r.json() if r.status_code == 200 else []
+    return (results[0]["game_domain"], results[0]["mod_id"]) if results else None
 
 
 @bot.tree.command(name="setchannel", description="Set the channel where mod updates get posted")
@@ -139,16 +162,11 @@ async def mod_autocomplete(
 @app_commands.guild_only()
 async def track(interaction: discord.Interaction, game: str, mod: str):
     await interaction.response.defer(ephemeral=True)
-    parsed = parse_track_value(mod)
+    parsed = await _resolve_mod(game, mod)
     if parsed is None:
-        # free text (no suggestion picked): search within the chosen game, take top hit
-        r = await api.get("/mods/search", params={"q": mod, "game": game})
-        results = r.json() if r.status_code == 200 else []
-        if not results:
-            await interaction.followup.send("No mod found by that name.")
-            return
-        parsed = (results[0]["game_domain"], results[0]["mod_id"])
-    await interaction.followup.send(await _do_track(interaction.guild_id, *parsed))
+        await interaction.followup.send("No mod found by that name.")
+        return
+    await _send_track_result(interaction, await _do_track(interaction.guild_id, *parsed))
 
 
 @bot.tree.command(name="trackurl", description="Track a mod by pasting its Nexus URL")
@@ -162,7 +180,7 @@ async def trackurl(interaction: discord.Interaction, url: str):
             "Paste a full mod URL like nexusmods.com/skyrimspecialedition/mods/266"
         )
         return
-    await interaction.followup.send(await _do_track(interaction.guild_id, *parsed))
+    await _send_track_result(interaction, await _do_track(interaction.guild_id, *parsed))
 
 
 async def tracked_autocomplete(
@@ -217,38 +235,31 @@ async def untrack(interaction: discord.Interaction, mod: str):
 async def list_mods(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     r = await api.get(f"/guilds/{interaction.guild_id}/mods")
-    mods = r.json()
-    if not mods:
-        await interaction.followup.send("Not tracking anything yet.")
+    if r.status_code != 200:
+        await interaction.followup.send("Couldn't fetch your list.")
         return
-    lines = [
-        f"• **{m['name']}** — v{m['version']} ({m['game_domain']}, id {m['mod_id']})" for m in mods
-    ]
-    await interaction.followup.send("\n".join(lines)[:2000])
+    await interaction.followup.send(embed=build_list_embed(r.json()))
 
 
 @bot.tree.command(name="info", description="Look up a mod without tracking it")
-@app_commands.describe(game="Nexus game domain", mod_id="Numeric mod ID")
+@app_commands.describe(game="Pick the game", mod="Search the mod by name")
+@app_commands.autocomplete(game=game_autocomplete, mod=mod_autocomplete)
 @app_commands.guild_only()
-async def info(interaction: discord.Interaction, game: str, mod_id: int):
+async def info(interaction: discord.Interaction, game: str, mod: str):
     await interaction.response.defer(ephemeral=True)
-    r = await api.get("/mods/info", params={"game_domain": game, "mod_id": mod_id})
+    parsed = await _resolve_mod(game, mod)
+    if parsed is None:
+        await interaction.followup.send("No mod found by that name.")
+        return
+    game_domain, mod_id = parsed
+    r = await api.get("/mods/info", params={"game_domain": game_domain, "mod_id": mod_id})
     if r.status_code == 404:
         await interaction.followup.send("That mod doesn't exist on Nexus.")
         return
     if r.status_code != 200:
         await interaction.followup.send("Something went wrong.")
         return
-    d = r.json()
-    embed = discord.Embed(
-        title=d["name"],
-        description=f"Version **{d['version']}** by {d['author']}",
-        url=mod_url(game, mod_id),
-        color=NEXUS_ORANGE,
-    )
-    if d.get("picture_url"):
-        embed.set_thumbnail(url=d["picture_url"])
-    await interaction.followup.send(embed=embed)
+    await interaction.followup.send(embed=build_mod_embed(r.json()))
 
 
 @bot.tree.command(name="check", description="Check all tracked mods for updates now")
