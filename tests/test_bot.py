@@ -145,12 +145,14 @@ def test_build_track_embed():
         "name": "SkyUI",
         "version": "5.2",
         "author": "Team",
+        "summary": "Elegant UI mod",
         "picture_url": "http://x/p.jpg",
         "game_domain": "skyrimspecialedition",
         "mod_id": 12604,
     }
     e = build_track_embed(mod)
     assert e.title == "SkyUI"
+    assert "Elegant UI mod" in e.description
     assert e.url == "https://www.nexusmods.com/skyrimspecialedition/mods/12604"
     assert e.image.url == "http://x/p.jpg"  # large image, not a thumbnail
     fields = {f.name: f.value for f in e.fields}

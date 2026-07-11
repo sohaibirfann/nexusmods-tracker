@@ -6,6 +6,7 @@ FAKE = {
     "name": "SkyUI",
     "version": "5.2",
     "author": "Team",
+    "summary": "Elegant UI mod",
     "picture_url": "http://x/p.jpg",
     "updated_timestamp": 2000000000,
 }
@@ -86,6 +87,7 @@ async def test_track_then_list(client):
     r = await _track(client, 1)
     assert r.status_code == 201
     assert r.json()["name"] == "SkyUI"
+    assert r.json()["summary"] == "Elegant UI mod"
     r = await client.get("/guilds/1/mods", headers=HEADERS)
     assert len(r.json()) == 1
 

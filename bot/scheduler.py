@@ -17,8 +17,10 @@ def mod_url(game_domain: str, mod_id: int) -> str:
 def build_mod_embed(mod: dict, status: str = "") -> discord.Embed:
     """A big, consistent card for one mod: title link, fields, and a large image."""
     link = mod_url(mod["game_domain"], mod["mod_id"])
+    summary = (mod.get("summary") or "")[:400]
+    description = "\n\n".join(p for p in (status, summary) if p)
     embed = discord.Embed(
-        title=mod["name"][:250], url=link, description=status, color=NEXUS_ORANGE
+        title=mod["name"][:250], url=link, description=description, color=NEXUS_ORANGE
     )
     if mod.get("version"):
         embed.add_field(name="Version", value=f"v{mod['version']}", inline=True)

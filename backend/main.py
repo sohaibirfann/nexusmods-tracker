@@ -196,6 +196,7 @@ async def mod_info(game_domain: str, mod_id: int):
         name=f["name"],
         version=f["version"],
         author=f["author"],
+        summary=f["summary"],
         picture_url=f["picture_url"],
     )
 

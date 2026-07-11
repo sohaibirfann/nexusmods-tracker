@@ -100,6 +100,7 @@ def extract_fields(info: dict) -> dict:
         "name": str(info.get("name", "")),
         "version": str(info.get("version", "")),
         "author": str(info.get("author", "")),
+        "summary": str(info.get("summary", ""))[:500],
         "picture_url": str(info.get("picture_url", "")),
         "nexus_updated_at": int(info.get("updated_timestamp", 0)),
     }

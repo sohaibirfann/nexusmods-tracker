@@ -14,6 +14,7 @@ class ModOut(BaseModel):
     name: str
     version: str
     author: str = ""
+    summary: str = ""
     picture_url: str = ""
     last_checked: datetime | None = None
 
@@ -26,6 +27,7 @@ class ModInfoOut(BaseModel):
     name: str
     version: str
     author: str = ""
+    summary: str = ""
     picture_url: str = ""
 
 
