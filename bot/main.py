@@ -138,7 +138,7 @@ async def mod_autocomplete(
 @app_commands.autocomplete(game=game_autocomplete, mod=mod_autocomplete)
 @app_commands.guild_only()
 async def track(interaction: discord.Interaction, game: str, mod: str):
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
     parsed = parse_track_value(mod)
     if parsed is None:
         # free text (no suggestion picked): search within the chosen game, take top hit
@@ -155,7 +155,7 @@ async def track(interaction: discord.Interaction, game: str, mod: str):
 @app_commands.describe(url="Full mod URL, e.g. nexusmods.com/skyrimspecialedition/mods/266")
 @app_commands.guild_only()
 async def trackurl(interaction: discord.Interaction, url: str):
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
     parsed = parse_mod_url(url)
     if parsed is None:
         await interaction.followup.send(
@@ -188,7 +188,7 @@ async def tracked_autocomplete(
 @app_commands.autocomplete(mod=tracked_autocomplete)
 @app_commands.guild_only()
 async def untrack(interaction: discord.Interaction, mod: str):
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
     parsed = parse_track_value(mod)
     if parsed is None:
         # free text: match by name against what the guild tracks
@@ -215,7 +215,7 @@ async def untrack(interaction: discord.Interaction, mod: str):
 @bot.tree.command(name="list", description="List tracked mods")
 @app_commands.guild_only()
 async def list_mods(interaction: discord.Interaction):
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
     r = await api.get(f"/guilds/{interaction.guild_id}/mods")
     mods = r.json()
     if not mods:
@@ -231,7 +231,7 @@ async def list_mods(interaction: discord.Interaction):
 @app_commands.describe(game="Nexus game domain", mod_id="Numeric mod ID")
 @app_commands.guild_only()
 async def info(interaction: discord.Interaction, game: str, mod_id: int):
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
     r = await api.get("/mods/info", params={"game_domain": game, "mod_id": mod_id})
     if r.status_code == 404:
         await interaction.followup.send("That mod doesn't exist on Nexus.")
@@ -255,7 +255,7 @@ async def info(interaction: discord.Interaction, game: str, mod_id: int):
 @app_commands.checks.cooldown(1, 300, key=lambda i: i.guild_id)
 @app_commands.guild_only()
 async def check(interaction: discord.Interaction):
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
     count = await run_check(bot)
     await interaction.followup.send(f"Check done — {count} update(s) found.")
 
