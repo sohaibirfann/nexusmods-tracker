@@ -158,12 +158,16 @@ async def setchannel(interaction: discord.Interaction, channel: discord.TextChan
     await interaction.followup.send(f"Updates will be posted in {target.mention}.", ephemeral=True)
 
 
+# Discord discards autocomplete replies after ~3s, so these calls fail fast
+AUTOCOMPLETE_TIMEOUT = 2
+
+
 async def game_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> list[app_commands.Choice[str]]:
     if len(current.strip()) < 2:
         return []
-    r = await api.get("/games", params={"q": current})
+    r = await api.get("/games", params={"q": current}, timeout=AUTOCOMPLETE_TIMEOUT)
     if r.status_code != 200:
         return []
     return [app_commands.Choice(name=g["name"][:100], value=g["domain"]) for g in r.json()]
@@ -176,7 +180,7 @@ async def mod_autocomplete(
         return []
     game = getattr(interaction.namespace, "game", None)
     params = {"q": current, "game": game} if game else {"q": current}
-    r = await api.get("/mods/search", params=params)
+    r = await api.get("/mods/search", params=params, timeout=AUTOCOMPLETE_TIMEOUT)
     if r.status_code != 200:
         return []
     return [
@@ -230,7 +234,7 @@ def _find_tracked(tracked: list[dict], mod: str) -> dict | None:
 async def tracked_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> list[app_commands.Choice[str]]:
-    r = await api.get(f"/guilds/{interaction.guild_id}/mods")
+    r = await api.get(f"/guilds/{interaction.guild_id}/mods", timeout=AUTOCOMPLETE_TIMEOUT)
     if r.status_code != 200:
         return []
     cur = current.strip().lower()

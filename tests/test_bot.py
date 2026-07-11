@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from bot.main import (
+    AUTOCOMPLETE_TIMEOUT,
     _find_tracked,
     _has_channel,
     _resolve_mod,
@@ -46,7 +47,9 @@ async def test_mod_autocomplete_guard_and_scoping():
     resp = _fake_response([{"mod_id": 3863, "name": "SkyUI", "game_domain": "skyrim"}])
     with patch("bot.main.api.get", new=AsyncMock(return_value=resp)) as g:
         choices = await mod_autocomplete(_interaction(game="skyrim"), "skyui")
-    g.assert_awaited_once_with("/mods/search", params={"q": "skyui", "game": "skyrim"})
+    g.assert_awaited_once_with(
+        "/mods/search", params={"q": "skyui", "game": "skyrim"}, timeout=AUTOCOMPLETE_TIMEOUT
+    )
     assert choices[0].value == "skyrim:3863"
     assert parse_track_value(choices[0].value) == ("skyrim", 3863)
 
