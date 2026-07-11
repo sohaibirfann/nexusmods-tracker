@@ -75,6 +75,8 @@ async def search_mods(query: str, game: str | None = None, limit: int = 25) -> l
         {"mod_id": n["modId"], "name": n["name"], "game_domain": n["game"]["domainName"]}
         for n in nodes
     ]
+    if len(_search_cache) > 500:
+        _search_cache.clear()
     _search_cache[key] = (time.monotonic(), results)
     return results
 
