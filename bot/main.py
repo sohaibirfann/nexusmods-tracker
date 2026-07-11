@@ -155,6 +155,13 @@ async def _has_channel(guild_id: int) -> bool:
     return r.json().get("channel_id") is not None
 
 
+async def _track_and_reply(interaction: discord.Interaction, game_domain: str, mod_id: int) -> None:
+    result = await _do_track(interaction.guild_id, game_domain, mod_id)
+    await _send_track_result(interaction, result)
+    if isinstance(result, dict) and not await _has_channel(interaction.guild_id):
+        await interaction.followup.send(NO_CHANNEL_WARNING, ephemeral=True)
+
+
 @bot.tree.command(name="setchannel", description="Set the channel where mod updates get posted")
 @app_commands.describe(channel="Channel to post updates in (defaults to this one)")
 @app_commands.checks.has_permissions(manage_guild=True)
@@ -217,10 +224,7 @@ async def track(interaction: discord.Interaction, game: str, mod: str):
     if parsed is None:
         await interaction.followup.send("No mod found by that name.")
         return
-    result = await _do_track(interaction.guild_id, *parsed)
-    await _send_track_result(interaction, result)
-    if isinstance(result, dict) and not await _has_channel(interaction.guild_id):
-        await interaction.followup.send(NO_CHANNEL_WARNING, ephemeral=True)
+    await _track_and_reply(interaction, *parsed)
 
 
 @bot.tree.command(name="trackurl", description="Track a mod by pasting its Nexus URL")
@@ -234,7 +238,7 @@ async def trackurl(interaction: discord.Interaction, url: str):
             "Paste a full mod URL like nexusmods.com/skyrimspecialedition/mods/266"
         )
         return
-    await _send_track_result(interaction, await _do_track(interaction.guild_id, *parsed))
+    await _track_and_reply(interaction, *parsed)
 
 
 def _find_tracked(tracked: list[dict], mod: str) -> dict | None:
@@ -336,6 +340,18 @@ async def list_mods(interaction: discord.Interaction):
         await interaction.followup.send(NO_CHANNEL_WARNING, ephemeral=True)
 
 
+class TrackButtonView(discord.ui.View):
+    def __init__(self, game_domain: str, mod_id: int):
+        super().__init__(timeout=120)
+        self.game_domain = game_domain
+        self.mod_id = mod_id
+
+    @discord.ui.button(label="Track this", style=discord.ButtonStyle.success)
+    async def track_this(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        await _track_and_reply(interaction, self.game_domain, self.mod_id)
+
+
 @bot.tree.command(name="info", description="Look up a mod without tracking it")
 @app_commands.describe(game="Pick the game", mod="Search the mod by name")
 @app_commands.autocomplete(game=game_autocomplete, mod=mod_autocomplete)
@@ -354,7 +370,9 @@ async def info(interaction: discord.Interaction, game: str, mod: str):
     if r.status_code != 200:
         await interaction.followup.send("Something went wrong.")
         return
-    await interaction.followup.send(embed=build_mod_embed(r.json()))
+    await interaction.followup.send(
+        embed=build_mod_embed(r.json()), view=TrackButtonView(game_domain, mod_id)
+    )
 
 
 @bot.tree.command(name="check", description="Check all tracked mods for updates now")
