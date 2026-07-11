@@ -233,17 +233,27 @@ async def check_for_updates(db: AsyncSession = Depends(get_db)):
 
     await db.commit()
 
-    out = []
-    for mod in changed:
-        targets = (
+    targets_by_mod: dict[int, list[NotifyTarget]] = {}
+    if changed:
+        rows = (
             await db.execute(
-                select(Guild.guild_id, Guild.channel_id)
-                .join(Subscription, Subscription.guild_id == Guild.guild_id)
-                .where(Subscription.mod_pk == mod.id, Guild.channel_id.is_not(None))
+                select(Subscription.mod_pk, Guild.guild_id, Guild.channel_id)
+                .join(Guild, Guild.guild_id == Subscription.guild_id)
+                .where(
+                    Subscription.mod_pk.in_([m.id for m in changed]),
+                    Guild.channel_id.is_not(None),
+                )
             )
         ).all()
-        notify = [NotifyTarget(guild_id=g, channel_id=c) for g, c in targets]
-        out.append(ChangedModOut(mod=ModOut.model_validate(mod), notify=notify))
+        for mod_pk, guild_id, channel_id in rows:
+            targets_by_mod.setdefault(mod_pk, []).append(
+                NotifyTarget(guild_id=guild_id, channel_id=channel_id)
+            )
+
+    out = [
+        ChangedModOut(mod=ModOut.model_validate(mod), notify=targets_by_mod.get(mod.id, []))
+        for mod in changed
+    ]
 
     logger.info(
         "Checked %d mods across %d games, %d changed", len(mods), len(by_domain), len(changed)
