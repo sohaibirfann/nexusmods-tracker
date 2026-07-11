@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import httpx
+
 from bot.main import (
     AUTOCOMPLETE_TIMEOUT,
     _find_tracked,
@@ -89,7 +91,9 @@ async def test_has_channel():
     with patch("bot.main.api.get", new=r({"channel_id": None})):
         assert await _has_channel(1) is False
     with patch("bot.main.api.get", new=r({}, 500)):
-        assert await _has_channel(1) is False
+        assert await _has_channel(1) is True
+    with patch("bot.main.api.get", new=AsyncMock(side_effect=httpx.ConnectError("down"))):
+        assert await _has_channel(1) is True
 
 
 async def test_resolve_mod():

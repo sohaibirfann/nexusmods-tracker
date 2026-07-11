@@ -78,7 +78,7 @@ WELCOME = (
     "👋 **Thanks for adding me!**\n"
     "1. Run `/setchannel` to pick where mod updates get posted.\n"
     "2. Use `/track` to follow a mod — I'll announce new versions automatically.\n"
-    "Other commands: `/list`, `/info`, `/untrack`, `/check`."
+    "Run `/help` to see everything I can do."
 )
 
 
@@ -95,6 +95,9 @@ async def on_guild_join(guild: discord.Guild):
 
 @bot.tree.error
 async def on_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if interaction.type == discord.InteractionType.autocomplete:
+        logger.warning("Autocomplete error: %s", error)
+        return
     if isinstance(error, app_commands.CommandOnCooldown):
         msg = f"Slow down — try again in {error.retry_after:.0f}s."
     elif isinstance(error, app_commands.MissingPermissions):
@@ -143,8 +146,13 @@ NO_CHANNEL_WARNING = "⚠️ No update channel set yet — run `/setchannel` so 
 
 
 async def _has_channel(guild_id: int) -> bool:
-    r = await api.get(f"/guilds/{guild_id}")
-    return r.status_code == 200 and r.json().get("channel_id") is not None
+    try:
+        r = await api.get(f"/guilds/{guild_id}")
+    except httpx.HTTPError:
+        return True
+    if r.status_code != 200:
+        return True
+    return r.json().get("channel_id") is not None
 
 
 @bot.tree.command(name="setchannel", description="Set the channel where mod updates get posted")
@@ -171,7 +179,10 @@ async def game_autocomplete(
 ) -> list[app_commands.Choice[str]]:
     if len(current.strip()) < 2:
         return []
-    r = await api.get("/games", params={"q": current}, timeout=AUTOCOMPLETE_TIMEOUT)
+    try:
+        r = await api.get("/games", params={"q": current}, timeout=AUTOCOMPLETE_TIMEOUT)
+    except httpx.HTTPError:
+        return []
     if r.status_code != 200:
         return []
     return [app_commands.Choice(name=g["name"][:100], value=g["domain"]) for g in r.json()]
@@ -184,7 +195,10 @@ async def mod_autocomplete(
         return []
     game = getattr(interaction.namespace, "game", None)
     params = {"q": current, "game": game} if game else {"q": current}
-    r = await api.get("/mods/search", params=params, timeout=AUTOCOMPLETE_TIMEOUT)
+    try:
+        r = await api.get("/mods/search", params=params, timeout=AUTOCOMPLETE_TIMEOUT)
+    except httpx.HTTPError:
+        return []
     if r.status_code != 200:
         return []
     return [
@@ -238,7 +252,10 @@ def _find_tracked(tracked: list[dict], mod: str) -> dict | None:
 async def tracked_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> list[app_commands.Choice[str]]:
-    r = await api.get(f"/guilds/{interaction.guild_id}/mods", timeout=AUTOCOMPLETE_TIMEOUT)
+    try:
+        r = await api.get(f"/guilds/{interaction.guild_id}/mods", timeout=AUTOCOMPLETE_TIMEOUT)
+    except httpx.HTTPError:
+        return []
     if r.status_code != 200:
         return []
     cur = current.strip().lower()
