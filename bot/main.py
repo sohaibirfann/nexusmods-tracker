@@ -7,10 +7,12 @@ from discord import app_commands
 
 from bot.config import api, settings
 from bot.scheduler import (
+    PAGE_SIZE,
     build_help_embed,
     build_list_embed,
     build_mod_embed,
     build_track_embed,
+    paginate,
     run_check,
     start_scheduler,
 )
@@ -33,7 +35,6 @@ def parse_mod_url(url: str) -> tuple[str, int] | None:
     return game, int(mod_id)
 
 
-# value format an autocomplete Choice carries: "<game_domain>:<mod_id>"
 _TRACK_VALUE = re.compile(r"^([\w-]+):(\d+)$")
 
 
@@ -171,7 +172,7 @@ async def game_autocomplete(
 async def mod_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> list[app_commands.Choice[str]]:
-    if len(current.strip()) < 3:  # skip the backend call on tiny inputs
+    if len(current.strip()) < 3:
         return []
     game = getattr(interaction.namespace, "game", None)
     params = {"q": current, "game": game} if game else {"q": current}
@@ -229,7 +230,6 @@ def _find_tracked(tracked: list[dict], mod: str) -> dict | None:
 async def tracked_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> list[app_commands.Choice[str]]:
-    # suggests from the guild's own tracked mods; no Nexus call
     r = await api.get(f"/guilds/{interaction.guild_id}/mods")
     if r.status_code != 200:
         return []
@@ -265,6 +265,35 @@ async def untrack(interaction: discord.Interaction, mod: str):
         await interaction.followup.send("Something went wrong.")
 
 
+class ListView(discord.ui.View):
+    def __init__(self, mods: list[dict]):
+        super().__init__(timeout=120)
+        self.mods = mods
+        self.page = 0
+        self._sync()
+
+    def _sync(self) -> None:
+        _, self.page, pages = paginate(self.mods, self.page)
+        self.prev_page.disabled = self.page <= 0
+        self.next_page.disabled = self.page >= pages - 1
+
+    async def _show(self, interaction: discord.Interaction) -> None:
+        self._sync()
+        await interaction.response.edit_message(
+            embed=build_list_embed(self.mods, self.page), view=self
+        )
+
+    @discord.ui.button(label="◀ Prev", style=discord.ButtonStyle.secondary)
+    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page -= 1
+        await self._show(interaction)
+
+    @discord.ui.button(label="Next ▶", style=discord.ButtonStyle.secondary)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page += 1
+        await self._show(interaction)
+
+
 @bot.tree.command(name="list", description="List tracked mods")
 @app_commands.guild_only()
 async def list_mods(interaction: discord.Interaction):
@@ -274,7 +303,10 @@ async def list_mods(interaction: discord.Interaction):
         await interaction.followup.send("Couldn't fetch your list.")
         return
     mods = r.json()
-    await interaction.followup.send(embed=build_list_embed(mods))
+    kwargs = {"embed": build_list_embed(mods)}
+    if len(mods) > PAGE_SIZE:
+        kwargs["view"] = ListView(mods)
+    await interaction.followup.send(**kwargs)
     if mods and not await _has_channel(interaction.guild_id):
         await interaction.followup.send(NO_CHANNEL_WARNING, ephemeral=True)
 

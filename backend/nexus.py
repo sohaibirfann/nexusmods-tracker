@@ -16,7 +16,6 @@ query($filter: ModsFilter!, $count: Int!) {
 }
 """
 
-# one client for the process lifetime, shared across all calls
 client = httpx.AsyncClient(
     base_url=BASE,
     headers={"apikey": settings.nexus_api_key, "accept": "application/json"},
@@ -48,11 +47,9 @@ async def get_updated_mods(game_domain: str, period: str = "1w") -> list[dict]:
     return resp.json()
 
 
-# small unbounded cache; queries are short-lived so it never really grows
 _search_cache: dict[tuple[str, str], tuple[float, list[dict]]] = {}
 _SEARCH_TTL = 60
 
-# the full games list changes rarely, so hold it for a day between fetches
 _games_cache: tuple[float, list[dict]] | None = None
 _GAMES_TTL = 86400
 

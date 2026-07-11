@@ -46,18 +46,30 @@ def build_help_embed(commands: list[tuple[str, str]]) -> discord.Embed:
     return embed
 
 
-def build_list_embed(mods: list[dict]) -> discord.Embed:
+PAGE_SIZE = 10
+
+
+def paginate(items: list, page: int, size: int = PAGE_SIZE) -> tuple[list, int, int]:
+    """Return (page_slice, clamped_page, total_pages)."""
+    pages = max(1, (len(items) + size - 1) // size)
+    page = max(0, min(page, pages - 1))
+    return items[page * size : page * size + size], page, pages
+
+
+def build_list_embed(mods: list[dict], page: int = 0) -> discord.Embed:
     if not mods:
         return discord.Embed(
             title="Tracked mods", description="Not tracking anything yet.", color=NEXUS_ORANGE
         )
+    page_mods, page, pages = paginate(mods, page)
     lines = [
-        f"[{m['name']}]({mod_url(m['game_domain'], m['mod_id'])}) — v{m['version']}" for m in mods
+        f"[{m['name']}]({mod_url(m['game_domain'], m['mod_id'])}) — v{m['version']}"
+        for m in page_mods
     ]
-    # long lists get paginated in a later change; trim to the embed limit for now
-    return discord.Embed(
-        title="Tracked mods", description="\n".join(lines)[:4096], color=NEXUS_ORANGE
-    )
+    embed = discord.Embed(title="Tracked mods", description="\n".join(lines), color=NEXUS_ORANGE)
+    if pages > 1:
+        embed.set_footer(text=f"Page {page + 1}/{pages}")
+    return embed
 
 
 async def post_updates(bot: discord.Client, changed: list[dict]) -> None:

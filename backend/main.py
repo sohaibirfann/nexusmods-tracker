@@ -63,7 +63,6 @@ async def _get_or_create_guild(db: AsyncSession, guild_id: int) -> Guild:
 
 
 async def _prune_orphan_mods(db: AsyncSession) -> None:
-    # mods nobody subscribes to anymore have no reason to be polled
     await db.execute(delete(Mod).where(~exists().where(Subscription.mod_pk == Mod.id)))
 
 
@@ -159,7 +158,6 @@ async def remove_guild(guild_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.get("/games", response_model=list[GameOut])
 async def games(q: str):
-    # filters the day-cached games list in memory; no per-call Nexus hit
     ql = q.strip().lower()
     if not ql:
         return []
@@ -172,7 +170,6 @@ async def games(q: str):
 
 @router.get("/mods/search", response_model=list[SearchResultOut])
 async def search(q: str, game: str | None = None):
-    # read-only; skip Nexus entirely for queries too short to be useful
     if len(q.strip()) < 3:
         return []
     try:
@@ -183,7 +180,6 @@ async def search(q: str, game: str | None = None):
 
 @router.get("/mods/info", response_model=ModInfoOut)
 async def mod_info(game_domain: str, mod_id: int):
-    # read-only lookup, never writes to the database
     try:
         info = await get_mod_info(game_domain, mod_id)
     except httpx.HTTPStatusError as e:

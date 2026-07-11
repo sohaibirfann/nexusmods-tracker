@@ -16,6 +16,7 @@ from bot.scheduler import (
     build_list_embed,
     build_track_embed,
     build_update_embed,
+    paginate,
 )
 
 
@@ -158,12 +159,28 @@ def test_build_help_embed():
     assert e.fields[names.index("/help")].value == "—"  # empty desc placeholder
 
 
+def test_paginate():
+    items = list(range(25))
+    assert paginate(items, 0, 10) == (items[0:10], 0, 3)
+    assert paginate(items, 2, 10) == (items[20:25], 2, 3)
+    assert paginate(items, 99, 10) == (items[20:25], 2, 3)  # clamped up
+    assert paginate(items, -5, 10) == (items[0:10], 0, 3)  # clamped down
+    assert paginate([], 0, 10) == ([], 0, 1)
+
+
 def test_build_list_embed():
     assert "Not tracking" in build_list_embed([]).description
-    mods = [{"name": "SkyUI", "version": "5.2", "game_domain": "skyrim", "mod_id": 3863}]
-    e = build_list_embed(mods)
+
+    one = [{"name": "SkyUI", "version": "5.2", "game_domain": "skyrim", "mod_id": 3863}]
+    e = build_list_embed(one)
     assert "[SkyUI](https://www.nexusmods.com/skyrim/mods/3863)" in e.description
-    assert "v5.2" in e.description
+    assert e.footer.text is None  # single page, no footer
+
+    many = [{"name": f"M{i}", "version": "1", "game_domain": "g", "mod_id": i} for i in range(15)]
+    p0 = build_list_embed(many, 0)
+    assert p0.footer.text == "Page 1/2"
+    assert "M0" in p0.description and "M10" not in p0.description
+    assert "M10" in build_list_embed(many, 1).description
 
 
 def test_build_update_embed():

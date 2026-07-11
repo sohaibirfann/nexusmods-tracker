@@ -13,7 +13,6 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# one client for the process; X-API-Key rides on every request as a default header
 api = httpx.AsyncClient(
     base_url=settings.backend_url,
     headers={"X-API-Key": settings.internal_api_key},
