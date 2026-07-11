@@ -1,4 +1,5 @@
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
@@ -34,7 +35,7 @@ CHECK_PERIOD = "1w"
 
 
 def require_api_key(x_api_key: str | None = Header(None)) -> None:
-    if x_api_key != settings.internal_api_key:
+    if not x_api_key or not secrets.compare_digest(x_api_key, settings.internal_api_key):
         raise HTTPException(401, "invalid api key")
 
 
