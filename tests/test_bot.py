@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from bot.main import (
+    _find_tracked,
     _has_channel,
     _resolve_mod,
     game_autocomplete,
@@ -54,6 +55,20 @@ async def test_tracked_autocomplete_filters_guild_mods():
         choices = await tracked_autocomplete(_interaction(), "sky")
     assert [c.value for c in choices] == ["skyrim:3863"]
     assert parse_track_value(choices[0].value) == ("skyrim", 3863)
+
+
+def test_find_tracked():
+    tracked = [
+        {"name": "USSEP", "game_domain": "skyrimspecialedition", "mod_id": 266},
+        {"name": "SkyUI", "game_domain": "skyrim", "mod_id": 3863},
+    ]
+    # picked value matches on game + id
+    assert _find_tracked(tracked, "skyrim:3863")["name"] == "SkyUI"
+    # free text matches on name
+    assert _find_tracked(tracked, "ussep")["name"] == "USSEP"
+    # no match either way
+    assert _find_tracked(tracked, "skyrim:9999") is None
+    assert _find_tracked(tracked, "nope") is None
 
 
 async def test_has_channel():

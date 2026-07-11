@@ -213,6 +213,18 @@ async def trackurl(interaction: discord.Interaction, url: str):
     await _send_track_result(interaction, await _do_track(interaction.guild_id, *parsed))
 
 
+def _find_tracked(tracked: list[dict], mod: str) -> dict | None:
+    """Match a picked 'game:modid' value or a free-typed name against the tracked list."""
+    parsed = parse_track_value(mod)
+    if parsed is not None:
+        game, mod_id = parsed
+        return next(
+            (m for m in tracked if m["game_domain"] == game and m["mod_id"] == mod_id), None
+        )
+    cur = mod.strip().lower()
+    return next((m for m in tracked if cur in m["name"].lower()), None)
+
+
 async def tracked_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> list[app_commands.Choice[str]]:
@@ -237,25 +249,17 @@ async def tracked_autocomplete(
 @app_commands.guild_only()
 async def untrack(interaction: discord.Interaction, mod: str):
     await interaction.response.defer(ephemeral=True)
-    parsed = parse_track_value(mod)
-    if parsed is None:
-        # free text: match by name against what the guild tracks
-        r = await api.get(f"/guilds/{interaction.guild_id}/mods")
-        tracked = r.json() if r.status_code == 200 else []
-        cur = mod.strip().lower()
-        match = next((m for m in tracked if cur in m["name"].lower()), None)
-        if match is None:
-            await interaction.followup.send("You're not tracking a mod by that name.")
-            return
-        parsed = (match["game_domain"], match["mod_id"])
-    game, mod_id = parsed
+    r = await api.get(f"/guilds/{interaction.guild_id}/mods")
+    target = _find_tracked(r.json() if r.status_code == 200 else [], mod)
+    if target is None:
+        await interaction.followup.send("You're not tracking that mod.")
+        return
     r = await api.delete(
-        f"/guilds/{interaction.guild_id}/mods", params={"game_domain": game, "mod_id": mod_id}
+        f"/guilds/{interaction.guild_id}/mods",
+        params={"game_domain": target["game_domain"], "mod_id": target["mod_id"]},
     )
     if r.status_code == 204:
-        await interaction.followup.send("Stopped tracking it.")
-    elif r.status_code == 404:
-        await interaction.followup.send("You're not tracking that mod.")
+        await interaction.followup.send(f"Stopped tracking **{target['name']}**.")
     else:
         await interaction.followup.send("Something went wrong.")
 
