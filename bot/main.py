@@ -155,7 +155,11 @@ async def setchannel(interaction: discord.Interaction, channel: discord.TextChan
     target = channel or interaction.channel
     await interaction.response.defer(ephemeral=True)
     await api.put(f"/guilds/{interaction.guild_id}/channel", json={"channel_id": target.id})
-    await interaction.followup.send(f"Updates will be posted in {target.mention}.", ephemeral=True)
+    if target.permissions_for(interaction.guild.me).send_messages:
+        msg = f"Updates will be posted in {target.mention}."
+    else:
+        msg = f"Set to {target.mention}, but I can't post there — grant me Send Messages."
+    await interaction.followup.send(msg, ephemeral=True)
 
 
 # Discord discards autocomplete replies after ~3s, so these calls fail fast
