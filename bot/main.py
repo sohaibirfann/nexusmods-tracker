@@ -118,6 +118,14 @@ async def _resolve_mod(game: str, mod: str) -> tuple[str, int] | None:
     return (results[0]["game_domain"], results[0]["mod_id"]) if results else None
 
 
+NO_CHANNEL_WARNING = "⚠️ No update channel set yet — run `/setchannel` so I can post updates."
+
+
+async def _has_channel(guild_id: int) -> bool:
+    r = await api.get(f"/guilds/{guild_id}")
+    return r.status_code == 200 and r.json().get("channel_id") is not None
+
+
 @bot.tree.command(name="setchannel", description="Set the channel where mod updates get posted")
 @app_commands.describe(channel="Channel to post updates in (defaults to this one)")
 @app_commands.checks.has_permissions(manage_guild=True)
@@ -166,7 +174,10 @@ async def track(interaction: discord.Interaction, game: str, mod: str):
     if parsed is None:
         await interaction.followup.send("No mod found by that name.")
         return
-    await _send_track_result(interaction, await _do_track(interaction.guild_id, *parsed))
+    result = await _do_track(interaction.guild_id, *parsed)
+    await _send_track_result(interaction, result)
+    if isinstance(result, dict) and not await _has_channel(interaction.guild_id):
+        await interaction.followup.send(NO_CHANNEL_WARNING, ephemeral=True)
 
 
 @bot.tree.command(name="trackurl", description="Track a mod by pasting its Nexus URL")
@@ -238,7 +249,10 @@ async def list_mods(interaction: discord.Interaction):
     if r.status_code != 200:
         await interaction.followup.send("Couldn't fetch your list.")
         return
-    await interaction.followup.send(embed=build_list_embed(r.json()))
+    mods = r.json()
+    await interaction.followup.send(embed=build_list_embed(mods))
+    if mods and not await _has_channel(interaction.guild_id):
+        await interaction.followup.send(NO_CHANNEL_WARNING, ephemeral=True)
 
 
 @bot.tree.command(name="info", description="Look up a mod without tracking it")

@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from bot.main import (
+    _has_channel,
     _resolve_mod,
     game_autocomplete,
     mod_autocomplete,
@@ -53,6 +54,18 @@ async def test_tracked_autocomplete_filters_guild_mods():
         choices = await tracked_autocomplete(_interaction(), "sky")
     assert [c.value for c in choices] == ["skyrim:3863"]
     assert parse_track_value(choices[0].value) == ("skyrim", 3863)
+
+
+async def test_has_channel():
+    def r(payload, status=200):
+        return AsyncMock(return_value=_fake_response(payload, status))
+
+    with patch("bot.main.api.get", new=r({"channel_id": 42})):
+        assert await _has_channel(1) is True
+    with patch("bot.main.api.get", new=r({"channel_id": None})):
+        assert await _has_channel(1) is False
+    with patch("bot.main.api.get", new=r({}, 500)):
+        assert await _has_channel(1) is False
 
 
 async def test_resolve_mod():

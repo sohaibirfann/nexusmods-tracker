@@ -16,6 +16,7 @@ from backend.nexus import extract_fields, get_games, get_mod_info, get_updated_m
 from backend.schemas import (
     ChangedModOut,
     GameOut,
+    GuildOut,
     ModInfoOut,
     ModOut,
     NotifyTarget,
@@ -64,6 +65,12 @@ async def _get_or_create_guild(db: AsyncSession, guild_id: int) -> Guild:
 async def _prune_orphan_mods(db: AsyncSession) -> None:
     # mods nobody subscribes to anymore have no reason to be polled
     await db.execute(delete(Mod).where(~exists().where(Subscription.mod_pk == Mod.id)))
+
+
+@router.get("/guilds/{guild_id}", response_model=GuildOut)
+async def get_guild(guild_id: int, db: AsyncSession = Depends(get_db)):
+    guild = await db.get(Guild, guild_id)
+    return GuildOut(guild_id=guild_id, channel_id=guild.channel_id if guild else None)
 
 
 @router.put("/guilds/{guild_id}/channel", status_code=204)

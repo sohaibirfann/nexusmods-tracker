@@ -54,6 +54,16 @@ async def test_search_scopes_by_game(client):
     m.assert_awaited_once_with("skyui", game="sse")
 
 
+async def test_get_guild_channel(client):
+    # unknown guild -> null channel
+    r = await client.get("/guilds/1", headers=HEADERS)
+    assert r.status_code == 200
+    assert r.json() == {"guild_id": 1, "channel_id": None}
+    # after setchannel -> returns it
+    await client.put("/guilds/1/channel", json={"channel_id": 42}, headers=HEADERS)
+    assert (await client.get("/guilds/1", headers=HEADERS)).json()["channel_id"] == 42
+
+
 async def test_games_empty_query_skips_fetch(client):
     with patch("backend.main.get_games") as m:
         r = await client.get("/games", params={"q": ""}, headers=HEADERS)
