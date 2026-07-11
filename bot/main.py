@@ -337,7 +337,8 @@ async def info(interaction: discord.Interaction, game: str, mod: str):
 
 
 @bot.tree.command(name="check", description="Check all tracked mods for updates now")
-@app_commands.checks.cooldown(1, 300, key=lambda i: i.guild_id)
+# one global bucket: /check runs a full cross-guild sweep, so it serves everyone at once
+@app_commands.checks.cooldown(1, 300, key=lambda i: None)
 @app_commands.guild_only()
 async def check(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
