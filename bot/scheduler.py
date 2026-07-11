@@ -39,6 +39,13 @@ def build_update_embed(mod: dict) -> discord.Embed:
     return build_mod_embed(mod, "🔔 New update available!")
 
 
+def build_help_embed(commands: list[tuple[str, str]]) -> discord.Embed:
+    embed = discord.Embed(title="Nexus Mod Tracker — Commands", color=NEXUS_ORANGE)
+    for name, desc in sorted(commands):
+        embed.add_field(name=f"/{name}", value=desc or "—", inline=False)
+    return embed
+
+
 def build_list_embed(mods: list[dict]) -> discord.Embed:
     if not mods:
         return discord.Embed(

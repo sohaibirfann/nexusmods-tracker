@@ -7,6 +7,7 @@ from discord import app_commands
 
 from bot.config import api, settings
 from bot.scheduler import (
+    build_help_embed,
     build_list_embed,
     build_mod_embed,
     build_track_embed,
@@ -306,6 +307,14 @@ async def check(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     count = await run_check(bot)
     await interaction.followup.send(f"Check done — {count} update(s) found.")
+
+
+@bot.tree.command(name="help", description="Show what this bot can do")
+@app_commands.guild_only()
+async def help_cmd(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    commands = [(c.name, c.description) for c in bot.tree.get_commands()]
+    await interaction.followup.send(embed=build_help_embed(commands))
 
 
 def run():

@@ -11,7 +11,12 @@ from bot.main import (
     parse_track_value,
     tracked_autocomplete,
 )
-from bot.scheduler import build_list_embed, build_track_embed, build_update_embed
+from bot.scheduler import (
+    build_help_embed,
+    build_list_embed,
+    build_track_embed,
+    build_update_embed,
+)
 
 
 def _fake_response(payload, status=200):
@@ -144,6 +149,13 @@ def test_build_track_embed():
     assert fields["Version"] == "v5.2"
     assert fields["Author"] == "Team"
     assert "?tab=logs" in fields["Links"] and "?tab=files" in fields["Links"]
+
+
+def test_build_help_embed():
+    e = build_help_embed([("track", "Track a mod"), ("check", "Check now"), ("help", "")])
+    names = [f.name for f in e.fields]
+    assert names == ["/check", "/help", "/track"]  # sorted
+    assert e.fields[names.index("/help")].value == "—"  # empty desc placeholder
 
 
 def test_build_list_embed():
