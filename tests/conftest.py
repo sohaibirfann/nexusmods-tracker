@@ -9,11 +9,21 @@ os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_db}"
 os.environ["DISCORD_BOT_TOKEN"] = "test"
 os.environ["BACKEND_URL"] = "http://test"
 
+from unittest.mock import patch  # noqa: E402
+
 import httpx  # noqa: E402
 import pytest  # noqa: E402
 from httpx import ASGITransport  # noqa: E402
 
 HEADERS = {"X-API-Key": "test-key"}
+
+FAKE_GAMES = [{"name": "Skyrim SE", "domain": "sse", "id": 1704}]
+
+
+@pytest.fixture(autouse=True)
+def _fake_games():
+    with patch("backend.main.get_games", return_value=FAKE_GAMES):
+        yield
 
 
 @pytest.fixture

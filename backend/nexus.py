@@ -83,15 +83,19 @@ async def search_mods(query: str, game: str | None = None, limit: int = 25) -> l
     return results
 
 
+def game_image_url(game_id: int) -> str:
+    return f"https://staticdelivery.nexusmods.com/Images/games/4_3/tile_{game_id}.jpg"
+
+
 async def get_games() -> list[dict]:
-    """All Nexus games as [{name, domain}], cached for a day."""
+    """All Nexus games as [{name, domain, id}], cached for a day."""
     global _games_cache
     if _games_cache and time.monotonic() - _games_cache[0] < _GAMES_TTL:
         return _games_cache[1]
     resp = await client.get("/v1/games.json")
     _check_rate_limit(resp)
     resp.raise_for_status()
-    games = [{"name": g["name"], "domain": g["domain_name"]} for g in resp.json()]
+    games = [{"name": g["name"], "domain": g["domain_name"], "id": g["id"]} for g in resp.json()]
     _games_cache = (time.monotonic(), games)
     return games
 
@@ -111,5 +115,7 @@ def extract_fields(info: dict) -> dict:
         "author": str(info.get("author", "")),
         "summary": clean_html(str(info.get("summary", "")))[:500],
         "picture_url": str(info.get("picture_url", "")),
+        "endorsements": int(info.get("endorsement_count", 0)),
+        "downloads": int(info.get("mod_downloads", 0)),
         "nexus_updated_at": int(info.get("updated_timestamp", 0)),
     }

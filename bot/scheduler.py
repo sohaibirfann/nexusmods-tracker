@@ -8,26 +8,54 @@ from bot.config import api, settings
 logger = logging.getLogger("bot.scheduler")
 
 NEXUS_ORANGE = 0xDA8E35
+SPACER = chr(0x200B)  # zero-width space; Discord rejects empty field name/value
 
 
 def mod_url(game_domain: str, mod_id: int) -> str:
     return f"https://www.nexusmods.com/{game_domain}/mods/{mod_id}"
 
 
+def abbrev(n: int) -> str:
+    for unit, size in (("B", 1_000_000_000), ("M", 1_000_000), ("K", 1_000)):
+        if n >= size:
+            return f"{n / size:.1f}{unit}".replace(".0", "")
+    return str(n)
+
+
 def build_mod_embed(mod: dict, status: str = "") -> discord.Embed:
-    """A big, consistent card for one mod: title link, fields, and a large image."""
+    """A big, consistent card for one mod: title link, grouped fields, and a large image."""
     link = mod_url(mod["game_domain"], mod["mod_id"])
     summary = (mod.get("summary") or "")[:400]
     description = "\n\n".join(p for p in (status, summary) if p)
     embed = discord.Embed(
         title=mod["name"][:250], url=link, description=description, color=NEXUS_ORANGE
     )
+    if mod.get("game_name"):
+        embed.set_author(name=mod["game_name"])
+    if mod.get("game_image_url"):
+        embed.set_thumbnail(url=mod["game_image_url"])
+
+    basic = []
     if mod.get("version"):
-        embed.add_field(name="Version", value=f"v{mod['version']}", inline=True)
+        basic.append(("Version", f"v{mod['version']}"))
     if mod.get("author"):
-        embed.add_field(name="Author", value=mod["author"][:200], inline=True)
+        basic.append(("Author", mod["author"][:200]))
+    stats = []
+    if mod.get("endorsements"):
+        stats.append(("Endorsements", abbrev(mod["endorsements"])))
+    if mod.get("downloads"):
+        stats.append(("Downloads", abbrev(mod["downloads"])))
+    if mod.get("nexus_updated_at"):
+        stats.append(("Updated", f"<t:{mod['nexus_updated_at']}:R>"))
     links = f"[Files]({link}?tab=files) • [Changelog]({link}?tab=logs)"
+
+    groups = [g for g in (basic, stats) if g]
+    for group in groups:
+        for name, value in group:
+            embed.add_field(name=name, value=value, inline=True)
+        embed.add_field(name=SPACER, value=SPACER, inline=False)
     embed.add_field(name="Links", value=links, inline=False)
+
     if mod.get("picture_url"):
         embed.set_image(url=mod["picture_url"])
     return embed

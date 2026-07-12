@@ -13,7 +13,14 @@ from backend.config import settings
 from backend.database import get_db
 from backend.models import Guild, Mod, Subscription
 from backend.nexus import client as nexus_client
-from backend.nexus import extract_fields, get_games, get_mod_info, get_updated_mods, search_mods
+from backend.nexus import (
+    extract_fields,
+    game_image_url,
+    get_games,
+    get_mod_info,
+    get_updated_mods,
+    search_mods,
+)
 from backend.schemas import (
     ChangedModOut,
     GameOut,
@@ -69,6 +76,20 @@ async def _prune_orphan_mods(db: AsyncSession) -> None:
     await db.execute(delete(Mod).where(~exists().where(Subscription.mod_pk == Mod.id)))
 
 
+async def _game_map() -> dict[str, tuple[str, str]]:
+    """domain -> (display name, tile image url), from the cached games list."""
+    try:
+        games = await get_games()
+    except httpx.HTTPError:
+        return {}
+    return {g["domain"]: (g["name"], game_image_url(g["id"])) for g in games}
+
+
+def _with_game(out: ModOut | ModInfoOut, games: dict[str, tuple[str, str]]) -> ModOut | ModInfoOut:
+    out.game_name, out.game_image_url = games.get(out.game_domain, (out.game_domain, ""))
+    return out
+
+
 @router.get("/guilds/{guild_id}", response_model=GuildOut)
 async def get_guild(guild_id: int, db: AsyncSession = Depends(get_db)):
     guild = await db.get(Guild, guild_id)
@@ -91,7 +112,8 @@ async def list_guild_mods(guild_id: int, db: AsyncSession = Depends(get_db)):
         .join(Subscription, Subscription.mod_pk == Mod.id)
         .where(Subscription.guild_id == guild_id)
     )
-    return result.scalars().all()
+    games = await _game_map()
+    return [_with_game(ModOut.model_validate(m), games) for m in result.scalars().all()]
 
 
 @router.post("/guilds/{guild_id}/mods", response_model=ModOut, status_code=201)
@@ -122,7 +144,7 @@ async def subscribe(guild_id: int, body: TrackModRequest, db: AsyncSession = Dep
     except IntegrityError as e:
         await db.rollback()
         raise HTTPException(409, "Already tracking that mod") from e
-    return mod
+    return _with_game(ModOut.model_validate(mod), await _game_map())
 
 
 @router.delete("/guilds/{guild_id}/mods", status_code=204)
@@ -190,7 +212,7 @@ async def mod_info(game_domain: str, mod_id: int):
             raise HTTPException(404, "That mod doesn't exist on Nexus") from e
         raise HTTPException(502, "Nexus API error") from e
     f = extract_fields(info)
-    return ModInfoOut(
+    out = ModInfoOut(
         game_domain=game_domain,
         mod_id=mod_id,
         name=f["name"],
@@ -198,7 +220,11 @@ async def mod_info(game_domain: str, mod_id: int):
         author=f["author"],
         summary=f["summary"],
         picture_url=f["picture_url"],
+        endorsements=f["endorsements"],
+        downloads=f["downloads"],
+        nexus_updated_at=f["nexus_updated_at"],
     )
+    return _with_game(out, await _game_map())
 
 
 @router.post("/check", response_model=list[ChangedModOut])
@@ -253,8 +279,12 @@ async def check_for_updates(db: AsyncSession = Depends(get_db)):
                 NotifyTarget(guild_id=guild_id, channel_id=channel_id)
             )
 
+    games = await _game_map()
     out = [
-        ChangedModOut(mod=ModOut.model_validate(mod), notify=targets_by_mod.get(mod.id, []))
+        ChangedModOut(
+            mod=_with_game(ModOut.model_validate(mod), games),
+            notify=targets_by_mod.get(mod.id, []),
+        )
         for mod in changed
     ]
 

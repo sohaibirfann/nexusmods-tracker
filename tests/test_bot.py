@@ -148,16 +148,25 @@ def test_build_track_embed():
         "summary": "Elegant UI mod",
         "picture_url": "http://x/p.jpg",
         "game_domain": "skyrimspecialedition",
+        "game_name": "Skyrim Special Edition",
+        "game_image_url": "http://x/tile.jpg",
+        "endorsements": 471129,
+        "downloads": 26773368,
+        "nexus_updated_at": 1700000000,
         "mod_id": 12604,
     }
     e = build_track_embed(mod)
     assert e.title == "SkyUI"
+    assert e.author.name == "Skyrim Special Edition"  # game name up top
+    assert e.thumbnail.url == "http://x/tile.jpg"  # game tile, top-right
     assert "Elegant UI mod" in e.description
     assert e.url == "https://www.nexusmods.com/skyrimspecialedition/mods/12604"
-    assert e.image.url == "http://x/p.jpg"  # large image, not a thumbnail
+    assert e.image.url == "http://x/p.jpg"  # mod image kept, large
     fields = {f.name: f.value for f in e.fields}
     assert fields["Version"] == "v5.2"
-    assert fields["Author"] == "Team"
+    assert fields["Endorsements"] == "471.1K"
+    assert fields["Downloads"] == "26.8M"
+    assert fields["Updated"] == "<t:1700000000:R>"
     assert "?tab=logs" in fields["Links"] and "?tab=files" in fields["Links"]
 
 

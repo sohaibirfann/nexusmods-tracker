@@ -17,6 +17,8 @@ FAKE = {
     "author": "Team",
     "summary": "Elegant UI mod",
     "picture_url": "http://x/p.jpg",
+    "endorsement_count": 471129,
+    "mod_downloads": 26773368,
     "updated_timestamp": 2000000000,
 }
 
@@ -95,10 +97,16 @@ async def test_games_filters_cached_list(client):
 async def test_track_then_list(client):
     r = await _track(client, 1)
     assert r.status_code == 201
-    assert r.json()["name"] == "SkyUI"
-    assert r.json()["summary"] == "Elegant UI mod"
+    d = r.json()
+    assert d["name"] == "SkyUI"
+    assert d["summary"] == "Elegant UI mod"
+    assert d["game_name"] == "Skyrim SE"
+    assert "tile_1704" in d["game_image_url"]
+    assert d["endorsements"] == 471129
+    assert d["downloads"] == 26773368
     r = await client.get("/guilds/1/mods", headers=HEADERS)
     assert len(r.json()) == 1
+    assert r.json()[0]["game_name"] == "Skyrim SE"
 
 
 async def test_duplicate_returns_409(client):

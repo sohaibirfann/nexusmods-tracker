@@ -18,6 +18,8 @@ class Mod(Base):
     author: Mapped[str] = mapped_column(String(255), default="")
     summary: Mapped[str] = mapped_column(String(500), default="")
     picture_url: Mapped[str] = mapped_column(String(500), default="")
+    endorsements: Mapped[int] = mapped_column(BigInteger, default=0)
+    downloads: Mapped[int] = mapped_column(BigInteger, default=0)
     nexus_updated_at: Mapped[int] = mapped_column(BigInteger, default=0)
     last_checked: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

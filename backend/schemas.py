@@ -10,12 +10,17 @@ class TrackModRequest(BaseModel):
 
 class ModOut(BaseModel):
     game_domain: str
+    game_name: str = ""
+    game_image_url: str = ""
     mod_id: int
     name: str
     version: str
     author: str = ""
     summary: str = ""
     picture_url: str = ""
+    endorsements: int = 0
+    downloads: int = 0
+    nexus_updated_at: int = 0
     last_checked: datetime | None = None
 
     model_config = {"from_attributes": True}
@@ -23,12 +28,17 @@ class ModOut(BaseModel):
 
 class ModInfoOut(BaseModel):
     game_domain: str
+    game_name: str = ""
+    game_image_url: str = ""
     mod_id: int
     name: str
     version: str
     author: str = ""
     summary: str = ""
     picture_url: str = ""
+    endorsements: int = 0
+    downloads: int = 0
+    nexus_updated_at: int = 0
 
 
 class SearchResultOut(BaseModel):
