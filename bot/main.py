@@ -389,8 +389,7 @@ async def check(interaction: discord.Interaction):
 @app_commands.guild_only()
 async def help_cmd(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
-    commands = [(c.name, c.description) for c in bot.tree.get_commands()]
-    await interaction.followup.send(embed=build_help_embed(commands))
+    await interaction.followup.send(embed=build_help_embed())
 
 
 def run():

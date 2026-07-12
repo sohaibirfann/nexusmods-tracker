@@ -171,10 +171,11 @@ def test_build_track_embed():
 
 
 def test_build_help_embed():
-    e = build_help_embed([("track", "Track a mod"), ("check", "Check now"), ("help", "")])
-    names = [f.name for f in e.fields]
-    assert names == ["/check", "/help", "/track"]  # sorted
-    assert e.fields[names.index("/help")].value == "—"  # empty desc placeholder
+    e = build_help_embed()
+    assert len(e.fields) == 3  # Setup / Tracking / Browse
+    body = "\n".join(f.value for f in e.fields)
+    for cmd in ("/setchannel", "/track", "/trackurl", "/untrack", "/list", "/info", "/check"):
+        assert cmd in body
 
 
 def test_paginate():

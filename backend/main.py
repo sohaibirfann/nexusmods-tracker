@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
     await nexus_client.aclose()
 
 
-app = FastAPI(title="Nexus Mod Tracker", lifespan=lifespan)
+app = FastAPI(title="Nexus Mods Tracker", lifespan=lifespan)
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
 

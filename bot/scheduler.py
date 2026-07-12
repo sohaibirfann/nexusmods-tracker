@@ -69,10 +69,36 @@ def build_update_embed(mod: dict) -> discord.Embed:
     return build_mod_embed(mod, "🔔 New update available!")
 
 
-def build_help_embed(commands: list[tuple[str, str]]) -> discord.Embed:
-    embed = discord.Embed(title="Nexus Mod Tracker — Commands", color=NEXUS_ORANGE)
-    for name, desc in sorted(commands):
-        embed.add_field(name=f"/{name}", value=desc or "—", inline=False)
+HELP_SECTIONS = [
+    ("⚙️ Setup", [("setchannel", "pick the channel where updates get posted")]),
+    (
+        "📥 Tracking",
+        [
+            ("track", "track a mod by name"),
+            ("trackurl", "track a mod by pasting its URL"),
+            ("untrack", "stop tracking a mod"),
+        ],
+    ),
+    (
+        "🔍 Browse",
+        [
+            ("list", "see your tracked mods"),
+            ("info", "preview a mod without tracking it"),
+            ("check", "check for updates right now"),
+        ],
+    ),
+]
+
+
+def build_help_embed() -> discord.Embed:
+    embed = discord.Embed(
+        title="🎮 Nexus Mods Tracker",
+        description="Get pinged the moment your favorite Nexus mods update.",
+        color=NEXUS_ORANGE,
+    )
+    for heading, cmds in HELP_SECTIONS:
+        value = "\n".join(f"`/{name}` — {desc}" for name, desc in cmds)
+        embed.add_field(name=heading, value=value, inline=False)
     return embed
 
 
