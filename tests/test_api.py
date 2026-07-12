@@ -2,6 +2,15 @@ from unittest.mock import patch
 
 from conftest import HEADERS
 
+from backend.nexus import clean_html
+
+
+def test_clean_html():
+    assert clean_html("Lua. <br />Fixes DLLs &amp; ReShade") == "Lua. \nFixes DLLs & ReShade"
+    assert clean_html("<b>Bold</b> and <i>italic</i>") == "Bold and italic"
+    assert clean_html("plain text") == "plain text"
+    assert clean_html("") == ""
+
 FAKE = {
     "name": "SkyUI",
     "version": "5.2",

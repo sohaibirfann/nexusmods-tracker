@@ -1,4 +1,6 @@
+import html
 import logging
+import re
 import time
 
 import httpx
@@ -94,13 +96,20 @@ async def get_games() -> list[dict]:
     return games
 
 
+def clean_html(text: str) -> str:
+    """Turn Nexus summary HTML into plain text: <br> to newline, drop tags, decode entities."""
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)
+    return html.unescape(text).strip()
+
+
 def extract_fields(info: dict) -> dict:
     """Pull just the fields we use out of a raw Nexus mod response, safely."""
     return {
         "name": str(info.get("name", "")),
         "version": str(info.get("version", "")),
         "author": str(info.get("author", "")),
-        "summary": str(info.get("summary", ""))[:500],
+        "summary": clean_html(str(info.get("summary", "")))[:500],
         "picture_url": str(info.get("picture_url", "")),
         "nexus_updated_at": int(info.get("updated_timestamp", 0)),
     }
