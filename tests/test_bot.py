@@ -15,6 +15,7 @@ from bot.main import (
     tracked_autocomplete,
 )
 from bot.scheduler import (
+    _ping_kwargs,
     build_help_embed,
     build_list_embed,
     build_status_embed,
@@ -171,6 +172,16 @@ def test_build_track_embed():
     assert fields["Downloads"] == "26.8M"
     assert fields["Updated"] == "<t:1700000000:R>"
     assert "Links" not in fields  # replaced by link buttons
+
+
+def test_ping_kwargs():
+    assert _ping_kwargs(None) == {}
+    assert _ping_kwargs(0) == {}  # no role -> no ping, no mention scoping
+    k = _ping_kwargs(555)
+    assert k["content"] == "<@&555>"
+    am = k["allowed_mentions"]
+    assert am.everyone is False and am.users is False
+    assert [r.id for r in am.roles] == [555]  # only this role may be pinged
 
 
 def test_build_status_embed():

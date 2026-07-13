@@ -47,10 +47,9 @@ def build_mod_embed(
         embed.set_thumbnail(url=mod["picture_url"])
 
     if update and changelog:
-        lines = "\n".join(f"• {line}" for line in changelog[:5])
-        if len(changelog) > 5:
-            lines += f"\n[…full changelog]({link}?tab=logs)"
-        embed.add_field(name="What's new", value=lines[:1024], inline=False)
+        more = f"\n[…full changelog]({link}?tab=logs)" if len(changelog) > 5 else ""
+        bullets = "\n".join(f"• {line}" for line in changelog[:5])
+        embed.add_field(name="What's new", value=bullets[: 1024 - len(more)] + more, inline=False)
 
     updated = f"<t:{mod['nexus_updated_at']}:R>" if mod.get("nexus_updated_at") else None
     fields = []
@@ -70,6 +69,19 @@ def build_mod_embed(
     for name, value in fields:
         embed.add_field(name=name, value=value, inline=True)
     return embed
+
+
+def _ping_kwargs(role_id: int | None) -> dict:
+    """content + scoped allowed_mentions to ping one role, or {} if none set."""
+    if not role_id:
+        return {}
+    return {
+        "content": f"<@&{role_id}>",
+        # scope so a stray mention in content can never ping @everyone or another role
+        "allowed_mentions": discord.AllowedMentions(
+            everyone=False, users=False, roles=[discord.Object(role_id)]
+        ),
+    }
 
 
 def mod_link_view(mod: dict) -> discord.ui.View:
@@ -207,19 +219,9 @@ async def post_updates(bot: discord.Client, changed: list[dict]) -> None:
                     "Channel %s not found (guild %s)", target["channel_id"], target["guild_id"]
                 )
                 continue
-            role_id = target.get("ping_role_id")
-            content = f"<@&{role_id}>" if role_id else None
-            # role mentions only ping from message content; scope so we can only ping this role
-            allowed = (
-                discord.AllowedMentions(
-                    everyone=False, users=False, roles=[discord.Object(role_id)]
-                )
-                if role_id
-                else None
-            )
             try:
                 await channel.send(
-                    content=content, embed=embed, view=view, allowed_mentions=allowed
+                    embed=embed, view=view, **_ping_kwargs(target.get("ping_role_id"))
                 )
             except discord.HTTPException as e:
                 logger.warning("Failed to post to channel %s: %s", target["channel_id"], e)
