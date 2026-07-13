@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 
 import discord
 import httpx
@@ -101,7 +102,8 @@ async def on_command_error(interaction: discord.Interaction, error: app_commands
         logger.warning("Autocomplete error: %s", error)
         return
     if isinstance(error, app_commands.CommandOnCooldown):
-        msg = f"Slow down — try again in {error.retry_after:.0f}s."
+        ready = int(time.time() + error.retry_after)
+        msg = f"A check just ran — next one available <t:{ready}:R>."
     elif isinstance(error, app_commands.MissingPermissions):
         msg = "You need the Manage Server permission for that."
     else:

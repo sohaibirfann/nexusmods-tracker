@@ -162,9 +162,9 @@ def build_status_embed(
     mod_count: int,
     poll_minutes: int,
 ) -> discord.Embed:
-    channel = f"<#{channel_id}>" if channel_id else "Not set — run `/setchannel`"
+    channel = f"<#{channel_id}>" if channel_id else "⚠️ Not set — run `/setchannel`"
     ping = f"<@&{ping_role_id}>" if ping_role_id else "Not set"
-    embed = discord.Embed(title="📊 Server status", color=NEXUS_ORANGE)
+    embed = discord.Embed(title="Server status", color=NEXUS_ORANGE)
     embed.set_author(name=guild_name)
     if guild_icon_url:
         embed.set_thumbnail(url=guild_icon_url)
