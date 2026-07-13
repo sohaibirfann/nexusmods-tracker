@@ -69,3 +69,6 @@ class NotifyTarget(BaseModel):
 class ChangedModOut(BaseModel):
     mod: ModOut
     notify: list[NotifyTarget]
+    previous_version: str = ""
+    endorsement_delta: int = 0
+    download_delta: int = 0

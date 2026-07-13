@@ -242,3 +242,15 @@ def test_build_update_embed():
     assert "new version available" in e.description.lower()
     assert e.image.url is None
     assert e.fields == []
+
+
+def test_build_update_embed_diff():
+    mod = {
+        "name": "SkyUI", "version": "5.3", "game_domain": "sse", "mod_id": 12,
+        "endorsements": 471629, "downloads": 26858368,
+    }
+    e = build_update_embed(mod, previous_version="5.2", endorsement_delta=500, download_delta=85000)
+    assert "v5.2 → v5.3" in e.description  # version diff in the status line
+    fields = {f.name: f.value for f in e.fields}
+    assert "(+500)" in fields["Endorsements"]
+    assert "(+85K)" in fields["Downloads"]

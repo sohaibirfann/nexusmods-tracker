@@ -237,6 +237,7 @@ async def check_for_updates(db: AsyncSession = Depends(get_db)):
 
     now = datetime.now(UTC)
     changed: list[Mod] = []
+    deltas: dict[int, tuple[str, int, int]] = {}  # mod.id -> (prev_version, endorse_Δ, dl_Δ)
 
     for game_domain, domain_mods in by_domain.items():
         try:
@@ -256,8 +257,14 @@ async def check_for_updates(db: AsyncSession = Depends(get_db)):
             except Exception as e:
                 logger.warning("Skipping %s/%s: %s", mod.game_domain, mod.mod_id, e)
                 continue
+            old_version, old_endorse, old_dl = mod.version, mod.endorsements, mod.downloads
             for key, value in extract_fields(info).items():
                 setattr(mod, key, value)
+            deltas[mod.id] = (
+                old_version,
+                mod.endorsements - old_endorse,
+                mod.downloads - old_dl,
+            )
             changed.append(mod)
 
     await db.commit()
@@ -284,6 +291,9 @@ async def check_for_updates(db: AsyncSession = Depends(get_db)):
         ChangedModOut(
             mod=_with_game(ModOut.model_validate(mod), games),
             notify=targets_by_mod.get(mod.id, []),
+            previous_version=deltas[mod.id][0],
+            endorsement_delta=deltas[mod.id][1],
+            download_delta=deltas[mod.id][2],
         )
         for mod in changed
     ]

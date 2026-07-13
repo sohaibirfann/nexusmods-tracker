@@ -21,7 +21,18 @@ def abbrev(n: int) -> str:
     return str(n)
 
 
-def build_mod_embed(mod: dict, status: str = "", *, update: bool = False) -> discord.Embed:
+def _stat(total: int, delta: int) -> str:
+    return f"{abbrev(total)} (+{abbrev(delta)})" if delta > 0 else abbrev(total)
+
+
+def build_mod_embed(
+    mod: dict,
+    status: str = "",
+    *,
+    update: bool = False,
+    endorsement_delta: int = 0,
+    download_delta: int = 0,
+) -> discord.Embed:
     """Compact card: mod image as thumbnail, no big image, fields wrap 3-per-row."""
     link = mod_url(mod["game_domain"], mod["mod_id"])
     summary = (mod.get("summary") or "")[:300]
@@ -44,9 +55,9 @@ def build_mod_embed(mod: dict, status: str = "", *, update: bool = False) -> dis
         if updated:
             fields.append(("Updated", updated))
     if mod.get("endorsements"):
-        fields.append(("Endorsements", abbrev(mod["endorsements"])))
+        fields.append(("Endorsements", _stat(mod["endorsements"], endorsement_delta)))
     if mod.get("downloads"):
-        fields.append(("Downloads", abbrev(mod["downloads"])))
+        fields.append(("Downloads", _stat(mod["downloads"], download_delta)))
     if update and updated:
         fields.append(("Updated", updated))
     for name, value in fields:
@@ -67,10 +78,23 @@ def build_track_embed(mod: dict) -> discord.Embed:
     return build_mod_embed(mod, "✅ Now tracking this mod")
 
 
-def build_update_embed(mod: dict) -> discord.Embed:
+def build_update_embed(
+    mod: dict, previous_version: str = "", endorsement_delta: int = 0, download_delta: int = 0
+) -> discord.Embed:
     v = mod.get("version")
-    status = f"🔔 Updated to v{v}" if v else "🔔 New version available"
-    return build_mod_embed(mod, status, update=True)
+    if previous_version and v and previous_version != v:
+        status = f"🔔 Updated: v{previous_version} → v{v}"
+    elif v:
+        status = f"🔔 Updated to v{v}"
+    else:
+        status = "🔔 New version available"
+    return build_mod_embed(
+        mod,
+        status,
+        update=True,
+        endorsement_delta=endorsement_delta,
+        download_delta=download_delta,
+    )
 
 
 HELP_SECTIONS = [
@@ -153,7 +177,12 @@ def build_list_embed(mods: list[dict], page: int = 0) -> discord.Embed:
 
 async def post_updates(bot: discord.Client, changed: list[dict]) -> None:
     for item in changed:
-        embed = build_update_embed(item["mod"])
+        embed = build_update_embed(
+            item["mod"],
+            item.get("previous_version", ""),
+            item.get("endorsement_delta", 0),
+            item.get("download_delta", 0),
+        )
         view = mod_link_view(item["mod"])
         for target in item["notify"]:
             channel = bot.get_channel(target["channel_id"])

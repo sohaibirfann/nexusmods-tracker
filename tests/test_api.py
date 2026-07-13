@@ -149,7 +149,13 @@ async def test_check_detects_change(client):
     await client.put("/guilds/1/channel", json={"channel_id": 999}, headers=HEADERS)
     await _track(client, 1)
     activity = [{"mod_id": 266, "latest_mod_activity": 2100000000}]
-    newer = {**FAKE, "version": "5.3", "updated_timestamp": 2100000000}
+    newer = {
+        **FAKE,
+        "version": "5.3",
+        "updated_timestamp": 2100000000,
+        "endorsement_count": 471129 + 500,
+        "mod_downloads": 26773368 + 85000,
+    }
     with (
         patch("backend.main.get_updated_mods", return_value=activity),
         patch("backend.main.get_mod_info", return_value=newer),
@@ -158,6 +164,9 @@ async def test_check_detects_change(client):
     changed = r.json()
     assert len(changed) == 1
     assert changed[0]["mod"]["version"] == "5.3"
+    assert changed[0]["previous_version"] == "5.2"
+    assert changed[0]["endorsement_delta"] == 500
+    assert changed[0]["download_delta"] == 85000
     assert changed[0]["notify"] == [{"guild_id": 1, "channel_id": 999}]
     # nothing new on a second pass
     with patch("backend.main.get_updated_mods", return_value=activity):
