@@ -234,8 +234,8 @@ def test_build_list_embed():
         "nexus_updated_at": 1700000000,
     }]
     e = build_list_embed(one)
-    assert "[SkyUI](https://www.nexusmods.com/skyrim/mods/3863) — v5.2" in e.description
-    assert "updated <t:1700000000:R>" in e.description  # relative time per line
+    assert "**[SkyUI](https://www.nexusmods.com/skyrim/mods/3863)**" in e.description  # bold link
+    assert "-# v5.2 · updated <t:1700000000:R>" in e.description  # subtext meta line
     assert e.footer.text == "1 mod tracked"  # singular, no page prefix
 
     many = [{"name": f"M{i}", "version": "1", "game_domain": "g", "mod_id": i} for i in range(15)]

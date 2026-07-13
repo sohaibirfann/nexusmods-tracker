@@ -230,10 +230,10 @@ def paginate(items: list, page: int, size: int = PAGE_SIZE) -> tuple[list, int, 
 
 
 def _list_line(m: dict) -> str:
-    line = f"[{m['name']}]({mod_url(m['game_domain'], m['mod_id'])}) — v{m['version']}"
+    meta = f"v{m['version']}"
     if m.get("nexus_updated_at"):
-        line += f" · updated <t:{m['nexus_updated_at']}:R>"
-    return line
+        meta += f" · updated <t:{m['nexus_updated_at']}:R>"
+    return f"**[{m['name']}]({mod_url(m['game_domain'], m['mod_id'])})**\n-# {meta}"
 
 
 def build_list_embed(mods: list[dict], page: int = 0) -> discord.Embed:
@@ -244,7 +244,7 @@ def build_list_embed(mods: list[dict], page: int = 0) -> discord.Embed:
     page_mods, page, pages = paginate(mods, page)
     embed = discord.Embed(
         title="Tracked mods",
-        description="\n".join(_list_line(m) for m in page_mods),
+        description="\n\n".join(_list_line(m) for m in page_mods),
         color=NEXUS_ORANGE,
     )
     total = len(mods)
