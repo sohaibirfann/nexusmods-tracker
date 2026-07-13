@@ -25,6 +25,23 @@ def _stat(total: int, delta: int) -> str:
     return f"{abbrev(total)} (+{abbrev(delta)})" if delta > 0 else abbrev(total)
 
 
+def _changelog_body(changelog: list, link: str, limit: int = 6) -> str:
+    """Markdown for the description: '### ' author headers, '- ' list items (hanging indent)."""
+    lines = []
+    for raw in changelog[:limit]:
+        s = raw.strip()
+        if not s or set(s) <= set("-–—=_*•· "):  # blank line or a horizontal rule
+            continue
+        if s.endswith(":"):
+            lines.append(f"### {s}")
+        else:
+            lines.append(f"- {s.lstrip('-–—*•· ').strip()}")
+    if not lines:
+        return ""
+    more = f"\n[…full changelog]({link}?tab=logs)" if len(changelog) > limit else ""
+    return "\n".join(lines)[: 3900 - len(more)] + more
+
+
 def build_mod_embed(
     mod: dict,
     status: str = "",
@@ -36,8 +53,10 @@ def build_mod_embed(
 ) -> discord.Embed:
     """Compact card: mod image as thumbnail, no big image, fields wrap 3-per-row."""
     link = mod_url(mod["game_domain"], mod["mod_id"])
-    summary = (mod.get("summary") or "")[:300]
-    description = "\n\n".join(p for p in (status, summary) if p)
+    # update posts lead with the changelog (markdown); everything else with the mod summary
+    changelog_md = _changelog_body(changelog, link) if update else ""
+    body = changelog_md or (mod.get("summary") or "")[:300]
+    description = "\n\n".join(p for p in (status, body) if p)
     embed = discord.Embed(
         title=mod["name"][:250], url=link, description=description, color=NEXUS_ORANGE
     )
@@ -45,11 +64,6 @@ def build_mod_embed(
         embed.set_author(name=mod["game_name"], icon_url=mod.get("game_image_url") or None)
     if mod.get("picture_url"):
         embed.set_thumbnail(url=mod["picture_url"])
-
-    if update and changelog:
-        more = f"\n[…full changelog]({link}?tab=logs)" if len(changelog) > 5 else ""
-        bullets = "\n".join(f"• {line}" for line in changelog[:5])
-        embed.add_field(name="What's new", value=bullets[: 1024 - len(more)] + more, inline=False)
 
     updated = f"<t:{mod['nexus_updated_at']}:R>" if mod.get("nexus_updated_at") else None
     fields = []

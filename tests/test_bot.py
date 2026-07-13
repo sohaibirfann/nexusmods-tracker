@@ -284,13 +284,19 @@ def test_build_update_embed_diff():
 
 def test_build_update_embed_changelog():
     mod = {"name": "SkyUI", "version": "5.3", "game_domain": "sse", "mod_id": 12}
+    # changelog renders as a markdown list in the description, not a "What's new" field
     e = build_update_embed(mod, changelog=["Fixed a crash", "Added FOMOD installer"])
-    whats_new = {f.name: f.value for f in e.fields}["What's new"]
-    assert "• Fixed a crash" in whats_new
-    assert "• Added FOMOD installer" in whats_new
+    assert "- Fixed a crash" in e.description
+    assert "- Added FOMOD installer" in e.description
+    assert not any(f.name == "What's new" for f in e.fields)
 
-    # more than 5 lines -> truncated with a full-changelog link
-    e = build_update_embed(mod, changelog=[f"change {i}" for i in range(8)])
-    whats_new = {f.name: f.value for f in e.fields}["What's new"]
-    assert "…full changelog" in whats_new
-    assert "change 5" not in whats_new  # only first 5 shown
+    # more than 6 lines -> truncated with a full-changelog link
+    e = build_update_embed(mod, changelog=[f"change {i}" for i in range(9)])
+    assert "…full changelog" in e.description
+    assert "change 6" not in e.description  # only first 6 shown
+
+    # header lines -> ### markdown, existing bullets not doubled, separators dropped
+    e = build_update_embed(mod, changelog=["Bug fixes:", "- Faster load", "• Cleaner UI", "------"])
+    assert "### Bug fixes:" in e.description
+    assert "- Faster load" in e.description and "- Cleaner UI" in e.description
+    assert "- -" not in e.description and "------" not in e.description
