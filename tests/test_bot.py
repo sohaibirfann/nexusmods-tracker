@@ -221,14 +221,18 @@ def test_paginate():
 def test_build_list_embed():
     assert "Not tracking" in build_list_embed([]).description
 
-    one = [{"name": "SkyUI", "version": "5.2", "game_domain": "skyrim", "mod_id": 3863}]
+    one = [{
+        "name": "SkyUI", "version": "5.2", "game_domain": "skyrim", "mod_id": 3863,
+        "nexus_updated_at": 1700000000,
+    }]
     e = build_list_embed(one)
-    assert "[SkyUI](https://www.nexusmods.com/skyrim/mods/3863)" in e.description
-    assert e.footer.text is None  # single page, no footer
+    assert "[SkyUI](https://www.nexusmods.com/skyrim/mods/3863) — v5.2" in e.description
+    assert "updated <t:1700000000:R>" in e.description  # relative time per line
+    assert e.footer.text == "1 mod tracked"  # singular, no page prefix
 
     many = [{"name": f"M{i}", "version": "1", "game_domain": "g", "mod_id": i} for i in range(15)]
     p0 = build_list_embed(many, 0)
-    assert p0.footer.text == "Page 1/2"
+    assert p0.footer.text == "Page 1/2 · 15 mods tracked"
     assert "M0" in p0.description and "M10" not in p0.description
     assert "M10" in build_list_embed(many, 1).description
 

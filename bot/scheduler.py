@@ -186,19 +186,29 @@ def paginate(items: list, page: int, size: int = PAGE_SIZE) -> tuple[list, int, 
     return items[page * size : page * size + size], page, pages
 
 
+def _list_line(m: dict) -> str:
+    line = f"[{m['name']}]({mod_url(m['game_domain'], m['mod_id'])}) — v{m['version']}"
+    if m.get("nexus_updated_at"):
+        line += f" · updated <t:{m['nexus_updated_at']}:R>"
+    return line
+
+
 def build_list_embed(mods: list[dict], page: int = 0) -> discord.Embed:
     if not mods:
         return discord.Embed(
             title="Tracked mods", description="Not tracking anything yet.", color=NEXUS_ORANGE
         )
     page_mods, page, pages = paginate(mods, page)
-    lines = [
-        f"[{m['name']}]({mod_url(m['game_domain'], m['mod_id'])}) — v{m['version']}"
-        for m in page_mods
-    ]
-    embed = discord.Embed(title="Tracked mods", description="\n".join(lines), color=NEXUS_ORANGE)
+    embed = discord.Embed(
+        title="Tracked mods",
+        description="\n".join(_list_line(m) for m in page_mods),
+        color=NEXUS_ORANGE,
+    )
+    total = len(mods)
+    footer = f"{total} mod{'' if total == 1 else 's'} tracked"
     if pages > 1:
-        embed.set_footer(text=f"Page {page + 1}/{pages}")
+        footer = f"Page {page + 1}/{pages} · {footer}"
+    embed.set_footer(text=footer)
     return embed
 
 

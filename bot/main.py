@@ -7,12 +7,12 @@ from discord import app_commands
 
 from bot.config import api, settings
 from bot.scheduler import (
-    PAGE_SIZE,
     build_help_embed,
     build_list_embed,
     build_mod_embed,
     build_status_embed,
     build_track_embed,
+    mod_link_view,
     mod_url,
     paginate,
     run_check,
@@ -318,17 +318,38 @@ class ListView(discord.ui.View):
         super().__init__(timeout=120)
         self.mods = mods
         self.page = 0
+        _, _, pages = paginate(mods, 0)
+        if pages <= 1:  # single page: no pager, just the picker
+            self.remove_item(self.prev_page)
+            self.remove_item(self.next_page)
+        self.picker = discord.ui.Select(placeholder="View a mod…")
+        self.picker.callback = self._pick
+        self.add_item(self.picker)
         self._sync()
 
     def _sync(self) -> None:
-        _, self.page, pages = paginate(self.mods, self.page)
-        self.prev_page.disabled = self.page <= 0
-        self.next_page.disabled = self.page >= pages - 1
+        page_mods, self.page, pages = paginate(self.mods, self.page)
+        if pages > 1:
+            self.prev_page.disabled = self.page <= 0
+            self.next_page.disabled = self.page >= pages - 1
+        self.picker.options = [
+            discord.SelectOption(label=m["name"][:100], value=f"{m['game_domain']}:{m['mod_id']}")
+            for m in page_mods
+        ]
 
     async def _show(self, interaction: discord.Interaction) -> None:
         self._sync()
         await interaction.response.edit_message(
             embed=build_list_embed(self.mods, self.page), view=self
+        )
+
+    async def _pick(self, interaction: discord.Interaction) -> None:
+        mod = _find_tracked(self.mods, self.picker.values[0])
+        if mod is None:
+            await interaction.response.send_message("That mod's no longer listed.", ephemeral=True)
+            return
+        await interaction.response.send_message(
+            embed=build_mod_embed(mod), view=mod_link_view(mod), ephemeral=True
         )
 
     @discord.ui.button(label="◀ Prev", style=discord.ButtonStyle.secondary)
@@ -351,8 +372,9 @@ async def list_mods(interaction: discord.Interaction):
         await interaction.followup.send("Couldn't fetch your list.")
         return
     mods = r.json()
+    mods.sort(key=lambda m: m.get("nexus_updated_at") or 0, reverse=True)
     kwargs = {"embed": build_list_embed(mods)}
-    if len(mods) > PAGE_SIZE:
+    if mods:
         kwargs["view"] = ListView(mods)
     await interaction.followup.send(**kwargs)
     if mods and not await _has_channel(interaction.guild_id):
