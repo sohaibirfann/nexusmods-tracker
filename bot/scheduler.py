@@ -146,15 +146,18 @@ def build_status_embed(
     guild_name: str,
     guild_icon_url: str | None,
     channel_id: int | None,
+    ping_role_id: int | None,
     mod_count: int,
     poll_minutes: int,
 ) -> discord.Embed:
     channel = f"<#{channel_id}>" if channel_id else "Not set — run `/setchannel`"
+    ping = f"<@&{ping_role_id}>" if ping_role_id else "Not set"
     embed = discord.Embed(title="📊 Server status", color=NEXUS_ORANGE)
     embed.set_author(name=guild_name)
     if guild_icon_url:
         embed.set_thumbnail(url=guild_icon_url)
     embed.add_field(name="Update channel", value=channel, inline=True)
+    embed.add_field(name="Ping role", value=ping, inline=True)
     embed.add_field(name="Tracked mods", value=str(mod_count), inline=True)
     embed.add_field(name="Check interval", value=f"every {poll_minutes} min", inline=True)
     embed.set_footer(text="/list to see tracked mods · /help for all commands")
@@ -204,8 +207,20 @@ async def post_updates(bot: discord.Client, changed: list[dict]) -> None:
                     "Channel %s not found (guild %s)", target["channel_id"], target["guild_id"]
                 )
                 continue
+            role_id = target.get("ping_role_id")
+            content = f"<@&{role_id}>" if role_id else None
+            # role mentions only ping from message content; scope so we can only ping this role
+            allowed = (
+                discord.AllowedMentions(
+                    everyone=False, users=False, roles=[discord.Object(role_id)]
+                )
+                if role_id
+                else None
+            )
             try:
-                await channel.send(embed=embed, view=view)
+                await channel.send(
+                    content=content, embed=embed, view=view, allowed_mentions=allowed
+                )
             except discord.HTTPException as e:
                 logger.warning("Failed to post to channel %s: %s", target["channel_id"], e)
 

@@ -179,6 +179,23 @@ async def setchannel(interaction: discord.Interaction, channel: discord.TextChan
     await interaction.followup.send(msg, ephemeral=True)
 
 
+@bot.tree.command(name="setping", description="Set a role to ping when a tracked mod updates")
+@app_commands.describe(role="Role to mention on updates (leave empty to turn pings off)")
+@app_commands.checks.has_permissions(manage_guild=True)
+@app_commands.guild_only()
+async def setping(interaction: discord.Interaction, role: discord.Role | None = None):
+    await interaction.response.defer(ephemeral=True)
+    await api.put(
+        f"/guilds/{interaction.guild_id}/role", json={"role_id": role.id if role else None}
+    )
+    msg = (
+        f"✅ I'll ping {role.mention} when a tracked mod updates."
+        if role
+        else "🔕 Update pings turned off."
+    )
+    await interaction.followup.send(msg, ephemeral=True)
+
+
 # Discord discards autocomplete replies after ~3s, so these calls fail fast
 AUTOCOMPLETE_TIMEOUT = 2
 
@@ -352,12 +369,17 @@ async def status(interaction: discord.Interaction):
         await interaction.followup.send("Couldn't fetch your status.")
         return
     guild = await api.get(f"/guilds/{gid}")
-    channel_id = guild.json().get("channel_id") if guild.status_code == 200 else None
+    data = guild.json() if guild.status_code == 200 else {}
     g = interaction.guild
     icon_url = g.icon.url if g.icon else None
     await interaction.followup.send(
         embed=build_status_embed(
-            g.name, icon_url, channel_id, len(r.json()), settings.poll_interval_minutes
+            g.name,
+            icon_url,
+            data.get("channel_id"),
+            data.get("ping_role_id"),
+            len(r.json()),
+            settings.poll_interval_minutes,
         )
     )
 

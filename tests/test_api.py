@@ -67,13 +67,21 @@ async def test_search_scopes_by_game(client):
 
 
 async def test_get_guild_channel(client):
-    # unknown guild -> null channel
+    # unknown guild -> nulls
     r = await client.get("/guilds/1", headers=HEADERS)
     assert r.status_code == 200
-    assert r.json() == {"guild_id": 1, "channel_id": None}
+    assert r.json() == {"guild_id": 1, "channel_id": None, "ping_role_id": None}
     # after setchannel -> returns it
     await client.put("/guilds/1/channel", json={"channel_id": 42}, headers=HEADERS)
     assert (await client.get("/guilds/1", headers=HEADERS)).json()["channel_id"] == 42
+
+
+async def test_set_and_clear_ping_role(client):
+    await client.put("/guilds/1/role", json={"role_id": 555}, headers=HEADERS)
+    assert (await client.get("/guilds/1", headers=HEADERS)).json()["ping_role_id"] == 555
+    # no role clears it
+    await client.put("/guilds/1/role", json={"role_id": None}, headers=HEADERS)
+    assert (await client.get("/guilds/1", headers=HEADERS)).json()["ping_role_id"] is None
 
 
 async def test_games_empty_query_skips_fetch(client):
@@ -147,6 +155,7 @@ async def test_per_guild_isolation_and_shared_prune(client):
 
 async def test_check_detects_change(client):
     await client.put("/guilds/1/channel", json={"channel_id": 999}, headers=HEADERS)
+    await client.put("/guilds/1/role", json={"role_id": 555}, headers=HEADERS)
     await _track(client, 1)
     activity = [{"mod_id": 266, "latest_mod_activity": 2100000000}]
     newer = {
@@ -169,7 +178,7 @@ async def test_check_detects_change(client):
     assert changed[0]["endorsement_delta"] == 500
     assert changed[0]["download_delta"] == 85000
     assert changed[0]["changelog"] == ["Fixed a crash", "Added FOMOD"]
-    assert changed[0]["notify"] == [{"guild_id": 1, "channel_id": 999}]
+    assert changed[0]["notify"] == [{"guild_id": 1, "channel_id": 999, "ping_role_id": 555}]
     # nothing new on a second pass
     with patch("backend.main.get_updated_mods", return_value=activity):
         r = await client.post("/check", headers=HEADERS)

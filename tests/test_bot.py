@@ -174,17 +174,20 @@ def test_build_track_embed():
 
 
 def test_build_status_embed():
-    e = build_status_embed("My Server", "http://x/icon.png", 12345, 7, 180)
+    e = build_status_embed("My Server", "http://x/icon.png", 12345, 999, 7, 180)
     assert e.author.name == "My Server"
     assert e.thumbnail.url == "http://x/icon.png"
     fields = {f.name: f.value for f in e.fields}
     assert fields["Update channel"] == "<#12345>"
+    assert fields["Ping role"] == "<@&999>"
     assert fields["Tracked mods"] == "7"
     assert "180" in fields["Check interval"]
-    # no channel and no icon -> /setchannel hint, no thumbnail
-    bare = build_status_embed("S", None, None, 0, 60)
+    # nothing set, no icon -> /setchannel hint, "Not set" ping, no thumbnail
+    bare = build_status_embed("S", None, None, None, 0, 60)
     assert bare.thumbnail.url is None
-    assert "setchannel" in {f.name: f.value for f in bare.fields}["Update channel"]
+    bare_fields = {f.name: f.value for f in bare.fields}
+    assert "setchannel" in bare_fields["Update channel"]
+    assert bare_fields["Ping role"] == "Not set"
 
 
 def test_build_help_embed():

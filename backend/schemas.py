@@ -56,14 +56,20 @@ class SetChannelRequest(BaseModel):
     channel_id: int
 
 
+class SetPingRequest(BaseModel):
+    role_id: int | None = None
+
+
 class GuildOut(BaseModel):
     guild_id: int
     channel_id: int | None = None
+    ping_role_id: int | None = None
 
 
 class NotifyTarget(BaseModel):
     guild_id: int
     channel_id: int
+    ping_role_id: int | None = None
 
 
 class ChangedModOut(BaseModel):

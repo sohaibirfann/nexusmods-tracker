@@ -30,6 +30,7 @@ class Guild(Base):
 
     guild_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    ping_role_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

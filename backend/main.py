@@ -31,6 +31,7 @@ from backend.schemas import (
     NotifyTarget,
     SearchResultOut,
     SetChannelRequest,
+    SetPingRequest,
     TrackModRequest,
 )
 
@@ -94,7 +95,11 @@ def _with_game(out: ModOut | ModInfoOut, games: dict[str, tuple[str, str]]) -> M
 @router.get("/guilds/{guild_id}", response_model=GuildOut)
 async def get_guild(guild_id: int, db: AsyncSession = Depends(get_db)):
     guild = await db.get(Guild, guild_id)
-    return GuildOut(guild_id=guild_id, channel_id=guild.channel_id if guild else None)
+    return GuildOut(
+        guild_id=guild_id,
+        channel_id=guild.channel_id if guild else None,
+        ping_role_id=guild.ping_role_id if guild else None,
+    )
 
 
 @router.put("/guilds/{guild_id}/channel", status_code=204)
@@ -103,6 +108,13 @@ async def set_channel(
 ):
     guild = await _get_or_create_guild(db, guild_id)
     guild.channel_id = body.channel_id
+    await db.commit()
+
+
+@router.put("/guilds/{guild_id}/role", status_code=204)
+async def set_ping(guild_id: int, body: SetPingRequest, db: AsyncSession = Depends(get_db)):
+    guild = await _get_or_create_guild(db, guild_id)
+    guild.ping_role_id = body.role_id
     await db.commit()
 
 
@@ -276,7 +288,9 @@ async def check_for_updates(db: AsyncSession = Depends(get_db)):
     if changed:
         rows = (
             await db.execute(
-                select(Subscription.mod_pk, Guild.guild_id, Guild.channel_id)
+                select(
+                    Subscription.mod_pk, Guild.guild_id, Guild.channel_id, Guild.ping_role_id
+                )
                 .join(Guild, Guild.guild_id == Subscription.guild_id)
                 .where(
                     Subscription.mod_pk.in_([m.id for m in changed]),
@@ -284,9 +298,9 @@ async def check_for_updates(db: AsyncSession = Depends(get_db)):
                 )
             )
         ).all()
-        for mod_pk, guild_id, channel_id in rows:
+        for mod_pk, guild_id, channel_id, ping_role_id in rows:
             targets_by_mod.setdefault(mod_pk, []).append(
-                NotifyTarget(guild_id=guild_id, channel_id=channel_id)
+                NotifyTarget(guild_id=guild_id, channel_id=channel_id, ping_role_id=ping_role_id)
             )
 
     games = await _game_map()
