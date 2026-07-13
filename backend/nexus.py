@@ -39,6 +39,17 @@ async def get_mod_info(game_domain: str, mod_id: int) -> dict:
     return resp.json()
 
 
+async def get_changelog(game_domain: str, mod_id: int, version: str) -> list[str]:
+    """Changelog lines for one mod version; [] if none. Best-effort — never raises."""
+    try:
+        resp = await client.get(f"/v1/games/{game_domain}/mods/{mod_id}/changelogs.json")
+        resp.raise_for_status()
+    except httpx.HTTPError as e:
+        logger.warning("Changelog fetch failed for %s/%s: %s", game_domain, mod_id, e)
+        return []
+    return [clean_html(line) for line in resp.json().get(version, [])]
+
+
 async def get_updated_mods(game_domain: str, period: str = "1w") -> list[dict]:
     """Mods with activity in the last `period` (1d/1w/1m) for a game, one call per game."""
     resp = await client.get(

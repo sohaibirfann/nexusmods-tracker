@@ -16,6 +16,7 @@ from backend.nexus import client as nexus_client
 from backend.nexus import (
     extract_fields,
     game_image_url,
+    get_changelog,
     get_games,
     get_mod_info,
     get_updated_mods,
@@ -238,6 +239,7 @@ async def check_for_updates(db: AsyncSession = Depends(get_db)):
     now = datetime.now(UTC)
     changed: list[Mod] = []
     deltas: dict[int, tuple[str, int, int]] = {}  # mod.id -> (prev_version, endorse_Δ, dl_Δ)
+    changelogs: dict[int, list[str]] = {}
 
     for game_domain, domain_mods in by_domain.items():
         try:
@@ -265,6 +267,7 @@ async def check_for_updates(db: AsyncSession = Depends(get_db)):
                 mod.endorsements - old_endorse,
                 mod.downloads - old_dl,
             )
+            changelogs[mod.id] = await get_changelog(mod.game_domain, mod.mod_id, mod.version)
             changed.append(mod)
 
     await db.commit()
@@ -294,6 +297,7 @@ async def check_for_updates(db: AsyncSession = Depends(get_db)):
             previous_version=deltas[mod.id][0],
             endorsement_delta=deltas[mod.id][1],
             download_delta=deltas[mod.id][2],
+            changelog=changelogs[mod.id],
         )
         for mod in changed
     ]

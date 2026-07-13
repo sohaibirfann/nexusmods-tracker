@@ -159,6 +159,7 @@ async def test_check_detects_change(client):
     with (
         patch("backend.main.get_updated_mods", return_value=activity),
         patch("backend.main.get_mod_info", return_value=newer),
+        patch("backend.main.get_changelog", return_value=["Fixed a crash", "Added FOMOD"]),
     ):
         r = await client.post("/check", headers=HEADERS)
     changed = r.json()
@@ -167,6 +168,7 @@ async def test_check_detects_change(client):
     assert changed[0]["previous_version"] == "5.2"
     assert changed[0]["endorsement_delta"] == 500
     assert changed[0]["download_delta"] == 85000
+    assert changed[0]["changelog"] == ["Fixed a crash", "Added FOMOD"]
     assert changed[0]["notify"] == [{"guild_id": 1, "channel_id": 999}]
     # nothing new on a second pass
     with patch("backend.main.get_updated_mods", return_value=activity):

@@ -72,3 +72,4 @@ class ChangedModOut(BaseModel):
     previous_version: str = ""
     endorsement_delta: int = 0
     download_delta: int = 0
+    changelog: list[str] = []

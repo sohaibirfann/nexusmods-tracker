@@ -32,6 +32,7 @@ def build_mod_embed(
     update: bool = False,
     endorsement_delta: int = 0,
     download_delta: int = 0,
+    changelog: list | tuple = (),
 ) -> discord.Embed:
     """Compact card: mod image as thumbnail, no big image, fields wrap 3-per-row."""
     link = mod_url(mod["game_domain"], mod["mod_id"])
@@ -44,6 +45,12 @@ def build_mod_embed(
         embed.set_author(name=mod["game_name"], icon_url=mod.get("game_image_url") or None)
     if mod.get("picture_url"):
         embed.set_thumbnail(url=mod["picture_url"])
+
+    if update and changelog:
+        lines = "\n".join(f"• {line}" for line in changelog[:5])
+        if len(changelog) > 5:
+            lines += f"\n[…full changelog]({link}?tab=logs)"
+        embed.add_field(name="What's new", value=lines[:1024], inline=False)
 
     updated = f"<t:{mod['nexus_updated_at']}:R>" if mod.get("nexus_updated_at") else None
     fields = []
@@ -79,7 +86,11 @@ def build_track_embed(mod: dict) -> discord.Embed:
 
 
 def build_update_embed(
-    mod: dict, previous_version: str = "", endorsement_delta: int = 0, download_delta: int = 0
+    mod: dict,
+    previous_version: str = "",
+    endorsement_delta: int = 0,
+    download_delta: int = 0,
+    changelog: list | tuple = (),
 ) -> discord.Embed:
     v = mod.get("version")
     if previous_version and v and previous_version != v:
@@ -94,6 +105,7 @@ def build_update_embed(
         update=True,
         endorsement_delta=endorsement_delta,
         download_delta=download_delta,
+        changelog=changelog,
     )
 
 
@@ -182,6 +194,7 @@ async def post_updates(bot: discord.Client, changed: list[dict]) -> None:
             item.get("previous_version", ""),
             item.get("endorsement_delta", 0),
             item.get("download_delta", 0),
+            item.get("changelog", []),
         )
         view = mod_link_view(item["mod"])
         for target in item["notify"]:

@@ -254,3 +254,17 @@ def test_build_update_embed_diff():
     fields = {f.name: f.value for f in e.fields}
     assert "(+500)" in fields["Endorsements"]
     assert "(+85K)" in fields["Downloads"]
+
+
+def test_build_update_embed_changelog():
+    mod = {"name": "SkyUI", "version": "5.3", "game_domain": "sse", "mod_id": 12}
+    e = build_update_embed(mod, changelog=["Fixed a crash", "Added FOMOD installer"])
+    whats_new = {f.name: f.value for f in e.fields}["What's new"]
+    assert "• Fixed a crash" in whats_new
+    assert "• Added FOMOD installer" in whats_new
+
+    # more than 5 lines -> truncated with a full-changelog link
+    e = build_update_embed(mod, changelog=[f"change {i}" for i in range(8)])
+    whats_new = {f.name: f.value for f in e.fields}["What's new"]
+    assert "…full changelog" in whats_new
+    assert "change 5" not in whats_new  # only first 5 shown
