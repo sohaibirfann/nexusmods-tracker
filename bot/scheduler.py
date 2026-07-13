@@ -8,7 +8,6 @@ from bot.config import api, settings
 logger = logging.getLogger("bot.scheduler")
 
 NEXUS_ORANGE = 0xDA8E35
-SPACER = chr(0x200B)  # zero-width space; Discord rejects empty field name/value
 
 
 def mod_url(game_domain: str, mod_id: int) -> str:
@@ -22,51 +21,56 @@ def abbrev(n: int) -> str:
     return str(n)
 
 
-def build_mod_embed(mod: dict, status: str = "") -> discord.Embed:
-    """A big, consistent card for one mod: title link, grouped fields, and a large image."""
+def build_mod_embed(mod: dict, status: str = "", *, update: bool = False) -> discord.Embed:
+    """Compact card: mod image as thumbnail, no big image, fields wrap 3-per-row."""
     link = mod_url(mod["game_domain"], mod["mod_id"])
-    summary = (mod.get("summary") or "")[:400]
+    summary = (mod.get("summary") or "")[:300]
     description = "\n\n".join(p for p in (status, summary) if p)
     embed = discord.Embed(
         title=mod["name"][:250], url=link, description=description, color=NEXUS_ORANGE
     )
     if mod.get("game_name"):
-        embed.set_author(name=mod["game_name"])
-    if mod.get("game_image_url"):
-        embed.set_thumbnail(url=mod["game_image_url"])
-
-    basic = []
-    if mod.get("version"):
-        basic.append(("Version", f"v{mod['version']}"))
-    if mod.get("author"):
-        basic.append(("Author", mod["author"][:200]))
-    stats = []
-    if mod.get("endorsements"):
-        stats.append(("Endorsements", abbrev(mod["endorsements"])))
-    if mod.get("downloads"):
-        stats.append(("Downloads", abbrev(mod["downloads"])))
-    if mod.get("nexus_updated_at"):
-        stats.append(("Updated", f"<t:{mod['nexus_updated_at']}:R>"))
-    links = f"[Files]({link}?tab=files) • [Changelog]({link}?tab=logs)"
-
-    groups = [g for g in (basic, stats) if g]
-    for group in groups:
-        for name, value in group:
-            embed.add_field(name=name, value=value, inline=True)
-        embed.add_field(name=SPACER, value=SPACER, inline=False)
-    embed.add_field(name="Links", value=links, inline=False)
-
+        embed.set_author(name=mod["game_name"], icon_url=mod.get("game_image_url") or None)
     if mod.get("picture_url"):
-        embed.set_image(url=mod["picture_url"])
+        embed.set_thumbnail(url=mod["picture_url"])
+
+    updated = f"<t:{mod['nexus_updated_at']}:R>" if mod.get("nexus_updated_at") else None
+    fields = []
+    if not update:  # track/info: version + author lead; on update they move to the status line
+        if mod.get("version"):
+            fields.append(("Version", f"v{mod['version']}"))
+        if mod.get("author"):
+            fields.append(("Author", mod["author"][:200]))
+        if updated:
+            fields.append(("Updated", updated))
+    if mod.get("endorsements"):
+        fields.append(("Endorsements", abbrev(mod["endorsements"])))
+    if mod.get("downloads"):
+        fields.append(("Downloads", abbrev(mod["downloads"])))
+    if update and updated:
+        fields.append(("Updated", updated))
+    for name, value in fields:
+        embed.add_field(name=name, value=value, inline=True)
     return embed
 
 
+def mod_link_view(mod: dict) -> discord.ui.View:
+    link = mod_url(mod["game_domain"], mod["mod_id"])
+    view = discord.ui.View(timeout=None)  # link buttons carry no state, never expire
+    view.add_item(discord.ui.Button(label="Mod page", url=link))
+    view.add_item(discord.ui.Button(label="Changelog", url=f"{link}?tab=logs"))
+    view.add_item(discord.ui.Button(label="Files", url=f"{link}?tab=files"))
+    return view
+
+
 def build_track_embed(mod: dict) -> discord.Embed:
-    return build_mod_embed(mod, "✅ Now tracking this mod.")
+    return build_mod_embed(mod, "✅ Now tracking this mod")
 
 
 def build_update_embed(mod: dict) -> discord.Embed:
-    return build_mod_embed(mod, "🔔 New update available!")
+    v = mod.get("version")
+    status = f"🔔 Updated to v{v}" if v else "🔔 New version available"
+    return build_mod_embed(mod, status, update=True)
 
 
 HELP_SECTIONS = [
@@ -150,6 +154,7 @@ def build_list_embed(mods: list[dict], page: int = 0) -> discord.Embed:
 async def post_updates(bot: discord.Client, changed: list[dict]) -> None:
     for item in changed:
         embed = build_update_embed(item["mod"])
+        view = mod_link_view(item["mod"])
         for target in item["notify"]:
             channel = bot.get_channel(target["channel_id"])
             if channel is None:
@@ -158,7 +163,7 @@ async def post_updates(bot: discord.Client, changed: list[dict]) -> None:
                 )
                 continue
             try:
-                await channel.send(embed=embed)
+                await channel.send(embed=embed, view=view)
             except discord.HTTPException as e:
                 logger.warning("Failed to post to channel %s: %s", target["channel_id"], e)
 

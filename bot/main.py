@@ -13,6 +13,7 @@ from bot.scheduler import (
     build_mod_embed,
     build_status_embed,
     build_track_embed,
+    mod_url,
     paginate,
     run_check,
     start_scheduler,
@@ -366,6 +367,7 @@ class TrackButtonView(discord.ui.View):
         super().__init__(timeout=120)
         self.game_domain = game_domain
         self.mod_id = mod_id
+        self.add_item(discord.ui.Button(label="Mod page", url=mod_url(game_domain, mod_id)))
 
     @discord.ui.button(label="Track this", style=discord.ButtonStyle.success)
     async def track_this(self, interaction: discord.Interaction, button: discord.ui.Button):

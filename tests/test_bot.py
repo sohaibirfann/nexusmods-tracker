@@ -159,16 +159,18 @@ def test_build_track_embed():
     e = build_track_embed(mod)
     assert e.title == "SkyUI"
     assert e.author.name == "Skyrim Special Edition"  # game name up top
-    assert e.thumbnail.url == "http://x/tile.jpg"  # game tile, top-right
+    assert e.author.icon_url == "http://x/tile.jpg"  # game tile shrunk to author icon
+    assert e.thumbnail.url == "http://x/p.jpg"  # mod image, top-right
+    assert e.image.url is None  # big bottom image dropped
     assert "Elegant UI mod" in e.description
     assert e.url == "https://www.nexusmods.com/skyrimspecialedition/mods/12604"
-    assert e.image.url == "http://x/p.jpg"  # mod image kept, large
     fields = {f.name: f.value for f in e.fields}
     assert fields["Version"] == "v5.2"
+    assert fields["Author"] == "Team"
     assert fields["Endorsements"] == "471.1K"
     assert fields["Downloads"] == "26.8M"
     assert fields["Updated"] == "<t:1700000000:R>"
-    assert "?tab=logs" in fields["Links"] and "?tab=files" in fields["Links"]
+    assert "Links" not in fields  # replaced by link buttons
 
 
 def test_build_status_embed():
@@ -228,12 +230,15 @@ def test_build_update_embed():
     }
     e = build_update_embed(mod)
     assert e.title == "SkyUI"
-    assert "update" in e.description.lower()
+    assert "updated to v5.2" in e.description.lower()  # version in the status line
     assert e.url == "https://www.nexusmods.com/sse/mods/12"
-    assert e.image.url == "http://x/p.jpg"
+    assert e.thumbnail.url == "http://x/p.jpg"  # mod image as thumbnail
+    assert e.image.url is None  # no big bottom image
+    assert "Author" not in {f.name for f in e.fields}  # author dropped on update posts
 
-    # missing optional fields shouldn't crash; no image, no Author field
+    # missing optional fields shouldn't crash; no version -> generic status, no fields
     bare = {"name": "X", "version": "", "author": "", "picture_url": "", "game_domain": "g", "mod_id": 1}  # noqa: E501
     e = build_update_embed(bare)
+    assert "new version available" in e.description.lower()
     assert e.image.url is None
-    assert {f.name for f in e.fields} == {"Links"}
+    assert e.fields == []
