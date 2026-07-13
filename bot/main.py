@@ -294,6 +294,35 @@ async def tracked_autocomplete(
     ]
 
 
+async def _disable_on_timeout(view: discord.ui.View) -> None:
+    for item in view.children:
+        item.disabled = True
+    if view.message:
+        try:
+            await view.message.edit(view=view)
+        except discord.HTTPException:
+            pass
+
+
+class UndoView(discord.ui.View):
+    def __init__(self, game_domain: str, mod_id: int):
+        super().__init__(timeout=60)
+        self.game_domain = game_domain
+        self.mod_id = mod_id
+        self.message = None
+
+    @discord.ui.button(label="Undo", style=discord.ButtonStyle.secondary)
+    async def undo(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        result = await _do_track(interaction.guild_id, self.game_domain, self.mod_id)
+        button.disabled = True
+        text = f"Re-tracking **{result['name']}**." if isinstance(result, dict) else result
+        await interaction.edit_original_response(content=text, view=self)
+
+    async def on_timeout(self) -> None:
+        await _disable_on_timeout(self)
+
+
 @bot.tree.command(name="untrack", description="Stop tracking a mod")
 @app_commands.describe(mod="Pick one of your tracked mods")
 @app_commands.autocomplete(mod=tracked_autocomplete)
@@ -310,7 +339,10 @@ async def untrack(interaction: discord.Interaction, mod: str):
         params={"game_domain": target["game_domain"], "mod_id": target["mod_id"]},
     )
     if r.status_code == 204:
-        await interaction.followup.send(f"Stopped tracking **{target['name']}**.")
+        view = UndoView(target["game_domain"], target["mod_id"])
+        view.message = await interaction.followup.send(
+            f"Stopped tracking **{target['name']}**.", view=view
+        )
     else:
         await interaction.followup.send("Something went wrong.")
 
@@ -320,6 +352,7 @@ class ListView(discord.ui.View):
         super().__init__(timeout=120)
         self.mods = mods
         self.page = 0
+        self.message = None
         _, _, pages = paginate(mods, 0)
         if pages <= 1:  # single page: no pager, just the picker
             self.remove_item(self.prev_page)
@@ -364,6 +397,9 @@ class ListView(discord.ui.View):
         self.page += 1
         await self._show(interaction)
 
+    async def on_timeout(self) -> None:
+        await _disable_on_timeout(self)
+
 
 @bot.tree.command(name="list", description="List tracked mods")
 @app_commands.guild_only()
@@ -378,7 +414,9 @@ async def list_mods(interaction: discord.Interaction):
     kwargs = {"embed": build_list_embed(mods)}
     if mods:
         kwargs["view"] = ListView(mods)
-    await interaction.followup.send(**kwargs)
+    sent = await interaction.followup.send(**kwargs)
+    if "view" in kwargs:
+        kwargs["view"].message = sent
     if mods and not await _has_channel(interaction.guild_id):
         await interaction.followup.send(NO_CHANNEL_WARNING, ephemeral=True)
 
@@ -413,12 +451,16 @@ class TrackButtonView(discord.ui.View):
         super().__init__(timeout=120)
         self.game_domain = game_domain
         self.mod_id = mod_id
+        self.message = None
         self.add_item(discord.ui.Button(label="Mod page", url=mod_url(game_domain, mod_id)))
 
     @discord.ui.button(label="Track this", style=discord.ButtonStyle.success)
     async def track_this(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
         await _track_and_reply(interaction, self.game_domain, self.mod_id)
+
+    async def on_timeout(self) -> None:
+        await _disable_on_timeout(self)
 
 
 @bot.tree.command(name="info", description="Look up a mod without tracking it")
@@ -439,9 +481,8 @@ async def info(interaction: discord.Interaction, game: str, mod: str):
     if r.status_code != 200:
         await interaction.followup.send("Something went wrong.")
         return
-    await interaction.followup.send(
-        embed=build_mod_embed(r.json()), view=TrackButtonView(game_domain, mod_id)
-    )
+    view = TrackButtonView(game_domain, mod_id)
+    view.message = await interaction.followup.send(embed=build_mod_embed(r.json()), view=view)
 
 
 @bot.tree.command(name="check", description="Check all tracked mods for updates now")
