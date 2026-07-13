@@ -11,6 +11,7 @@ from bot.scheduler import (
     build_help_embed,
     build_list_embed,
     build_mod_embed,
+    build_status_embed,
     build_track_embed,
     paginate,
     run_check,
@@ -338,6 +339,26 @@ async def list_mods(interaction: discord.Interaction):
     await interaction.followup.send(**kwargs)
     if mods and not await _has_channel(interaction.guild_id):
         await interaction.followup.send(NO_CHANNEL_WARNING, ephemeral=True)
+
+
+@bot.tree.command(name="status", description="Show this server's tracker setup")
+@app_commands.guild_only()
+async def status(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    gid = interaction.guild_id
+    r = await api.get(f"/guilds/{gid}/mods")
+    if r.status_code != 200:
+        await interaction.followup.send("Couldn't fetch your status.")
+        return
+    guild = await api.get(f"/guilds/{gid}")
+    channel_id = guild.json().get("channel_id") if guild.status_code == 200 else None
+    g = interaction.guild
+    icon_url = g.icon.url if g.icon else None
+    await interaction.followup.send(
+        embed=build_status_embed(
+            g.name, icon_url, channel_id, len(r.json()), settings.poll_interval_minutes
+        )
+    )
 
 
 class TrackButtonView(discord.ui.View):

@@ -102,6 +102,25 @@ def build_help_embed() -> discord.Embed:
     return embed
 
 
+def build_status_embed(
+    guild_name: str,
+    guild_icon_url: str | None,
+    channel_id: int | None,
+    mod_count: int,
+    poll_minutes: int,
+) -> discord.Embed:
+    channel = f"<#{channel_id}>" if channel_id else "Not set — run `/setchannel`"
+    embed = discord.Embed(title="📊 Server status", color=NEXUS_ORANGE)
+    embed.set_author(name=guild_name)
+    if guild_icon_url:
+        embed.set_thumbnail(url=guild_icon_url)
+    embed.add_field(name="Update channel", value=channel, inline=True)
+    embed.add_field(name="Tracked mods", value=str(mod_count), inline=True)
+    embed.add_field(name="Check interval", value=f"every {poll_minutes} min", inline=True)
+    embed.set_footer(text="/list to see tracked mods · /help for all commands")
+    return embed
+
+
 PAGE_SIZE = 10
 
 
