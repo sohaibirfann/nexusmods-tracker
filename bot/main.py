@@ -13,6 +13,7 @@ from bot.scheduler import (
     build_mod_embed,
     build_status_embed,
     build_track_embed,
+    build_welcome_embed,
     mod_link_view,
     mod_url,
     paginate,
@@ -51,9 +52,11 @@ class TrackerBot(discord.Client):
     def __init__(self):
         super().__init__(intents=discord.Intents.default())
         self.tree = app_commands.CommandTree(self)
+        self.command_ids: dict[str, int] = {}
 
     async def setup_hook(self):
-        await self.tree.sync()
+        synced = await self.tree.sync()
+        self.command_ids = {c.name: c.id for c in synced}
         start_scheduler(self)
 
     async def close(self):
@@ -77,21 +80,13 @@ async def on_guild_remove(guild: discord.Guild):
         logger.warning("Cleanup failed for guild %s: %s", guild.id, e)
 
 
-WELCOME = (
-    "👋 **Thanks for adding me!**\n"
-    "1. Run `/setchannel` to pick where mod updates get posted.\n"
-    "2. Use `/track` to follow a mod — I'll announce new versions automatically.\n"
-    "Run `/help` to see everything I can do."
-)
-
-
 @bot.event
 async def on_guild_join(guild: discord.Guild):
     channel = guild.system_channel
     if channel is None or not channel.permissions_for(guild.me).send_messages:
         return
     try:
-        await channel.send(WELCOME)
+        await channel.send(embed=build_welcome_embed(bot.command_ids))
     except discord.HTTPException as e:
         logger.warning("Welcome message failed for guild %s: %s", guild.id, e)
 
@@ -499,7 +494,7 @@ async def check(interaction: discord.Interaction):
 @app_commands.guild_only()
 async def help_cmd(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
-    await interaction.followup.send(embed=build_help_embed())
+    await interaction.followup.send(embed=build_help_embed(bot.command_ids))
 
 
 def run():

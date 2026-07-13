@@ -122,7 +122,13 @@ def build_update_embed(
 
 
 HELP_SECTIONS = [
-    ("⚙️ Setup", [("setchannel", "pick the channel where updates get posted")]),
+    (
+        "⚙️ Setup",
+        [
+            ("setchannel", "pick the channel where updates get posted"),
+            ("setping", "role to ping when a mod updates"),
+        ],
+    ),
     (
         "📥 Tracking",
         [
@@ -137,20 +143,43 @@ HELP_SECTIONS = [
             ("list", "see your tracked mods"),
             ("info", "preview a mod without tracking it"),
             ("check", "check for updates right now"),
+            ("status", "see this server's setup"),
         ],
     ),
 ]
 
 
-def build_help_embed() -> discord.Embed:
-    embed = discord.Embed(
-        title="🎮 Nexus Mods Tracker",
-        description="Get pinged the moment your favorite Nexus mods update.",
+def _cmd(name: str, ids: dict) -> str:
+    """A clickable </name:id> mention when we know the command's id, else plain /name."""
+    return f"</{name}:{ids[name]}>" if name in ids else f"/{name}"
+
+
+def build_help_embed(command_ids: dict | None = None) -> discord.Embed:
+    ids = command_ids or {}
+    sections = [
+        f"**{heading}**\n" + "\n".join(f"{_cmd(name, ids)} — {desc}" for name, desc in cmds)
+        for heading, cmds in HELP_SECTIONS
+    ]
+    return discord.Embed(
+        title="Nexus Mods Tracker",
+        description="Get pinged the moment your favorite Nexus mods update.\n\n"
+        + "\n\n".join(sections),
         color=NEXUS_ORANGE,
     )
-    for heading, cmds in HELP_SECTIONS:
-        value = "\n".join(f"`/{name}` — {desc}" for name, desc in cmds)
-        embed.add_field(name=heading, value=value, inline=False)
+
+
+def build_welcome_embed(command_ids: dict | None = None) -> discord.Embed:
+    ids = command_ids or {}
+    embed = discord.Embed(
+        title="👋 Thanks for adding me!",
+        description=(
+            "I watch Nexus Mods and announce new versions right here.\n\n"
+            f"**1.** Run {_cmd('setchannel', ids)} to pick where updates get posted\n"
+            f"**2.** Use {_cmd('track', ids)} to follow your first mod"
+        ),
+        color=NEXUS_ORANGE,
+    )
+    embed.set_footer(text="/help shows everything I can do")
     return embed
 
 

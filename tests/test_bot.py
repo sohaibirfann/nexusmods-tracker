@@ -21,6 +21,7 @@ from bot.scheduler import (
     build_status_embed,
     build_track_embed,
     build_update_embed,
+    build_welcome_embed,
     paginate,
 )
 
@@ -202,11 +203,18 @@ def test_build_status_embed():
 
 
 def test_build_help_embed():
+    # no ids -> plain /name fallback, all commands listed in the description
     e = build_help_embed()
-    assert len(e.fields) == 3  # Setup / Tracking / Browse
-    body = "\n".join(f.value for f in e.fields)
-    for cmd in ("/setchannel", "/track", "/trackurl", "/untrack", "/list", "/info", "/check"):
-        assert cmd in body
+    for cmd in ("/setchannel", "/setping", "/track", "/trackurl", "/untrack",
+                "/list", "/info", "/check", "/status"):
+        assert cmd in e.description
+    # with ids -> clickable </name:id> mention
+    assert "</track:999>" in build_help_embed({"track": 999}).description
+
+
+def test_build_welcome_embed():
+    assert "/setchannel" in build_welcome_embed().description
+    assert "</setchannel:5>" in build_welcome_embed({"setchannel": 5}).description
 
 
 def test_paginate():
