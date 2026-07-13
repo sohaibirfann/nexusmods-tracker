@@ -176,7 +176,7 @@ def build_help_embed(command_ids: dict | None = None) -> discord.Embed:
     ]
     return discord.Embed(
         title="Nexus Mods Tracker",
-        description="Get pinged the moment your favorite Nexus mods update.\n\n"
+        description="Get pinged the moment your favorite mods update.\n\n"
         + "\n\n".join(sections),
         color=NEXUS_ORANGE,
     )
