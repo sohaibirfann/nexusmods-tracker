@@ -36,6 +36,14 @@ It's a self-hosted stack: a thin **discord.py** bot talking to a **FastAPI** bac
 | `/check` | Force an update check right now |
 | `/help` | Show every command |
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/update-post.png" alt="An update announcement posted by the bot, showing the mod's changelog, endorsement/download counts, and quick links" width="600">
+</p>
+
+<p align="center"><sub>An update announcement — changelog, stats, and quick links to the mod page, changelog, and files.</sub></p>
+
 ## How it works
 
 ```
